@@ -18,6 +18,10 @@ const MAX_TEXTURES = 10;
 /** Swing distance above which the arm lifts, travels and lowers instead of sliding. */
 const TRAVEL_EPS = RAD(0.6);
 const SWAP_SECONDS = 0.7;
+/** Wide layouts: horizontal deck offset (fraction of width) and size, in the hero vs docked left. */
+const HERO_SHIFT_X = 0.16;
+const DOCK_SHIFT_X = -0.23;
+const DOCK_ZOOM = 0.62;
 
 export interface PlaybackState {
   playing: boolean;
@@ -122,6 +126,9 @@ export class VinylStage {
   private readonly loader = new GLTFLoader();
   private readonly raycaster = new THREE.Raycaster();
   private readonly resizeObserver: ResizeObserver;
+  private readonly visibility: IntersectionObserver;
+  /** Off-screen canvases (phones, scrolled past the hero) keep animating but skip drawing. */
+  private visible = true;
   private readonly key: THREE.SpotLight;
   private readonly abort = new AbortController();
   private disposed = false;
@@ -159,6 +166,9 @@ export class VinylStage {
   /** Extra downward shift of the deck, as a fraction of the height (wide layouts). */
   private shiftY = 0;
   private shiftYTarget = 0;
+  /** 0 = hero position, 1 = docked on the left (wide layouts only). */
+  private dock = 0;
+  private dockTarget = 0;
 
   constructor(
     private readonly container: HTMLElement,
@@ -177,7 +187,7 @@ export class VinylStage {
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     canvas.style.outline = "none";
-    canvas.setAttribute("aria-label", "3D turntable. Drag to orbit, scroll or pinch to zoom.");
+    canvas.setAttribute("aria-label", "3D turntable. Drag to orbit, pinch to zoom.");
     canvas.setAttribute("role", "img");
     container.appendChild(canvas);
     this.renderer = renderer;
@@ -216,6 +226,16 @@ export class VinylStage {
     floor.receiveShadow = true;
     this.scene.add(floor);
 
+    // The page scrolls: a plain wheel scrolls it, and only pinch / Ctrl+wheel zooms the deck.
+    // Registered before OrbitControls so it runs first and can keep the event from it.
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (!e.ctrlKey && !e.metaKey) e.stopImmediatePropagation();
+      },
+      { capture: true, signal: this.abort.signal },
+    );
+
     const controls = new OrbitControls(this.camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.07;
@@ -231,10 +251,17 @@ export class VinylStage {
       this.dirty = true;
     });
     this.controls = controls;
+    // Vertical swipes scroll the page; horizontal swipes orbit and two fingers zoom.
+    canvas.style.touchAction = "pan-y";
 
     this.bindPointer(canvas);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
+    this.visibility = new IntersectionObserver(([entry]) => {
+      this.visible = entry.isIntersecting;
+      if (this.visible) this.dirty = true;
+    });
+    this.visibility.observe(container);
     this.resize();
     renderer.setAnimationLoop(this.tick);
   }
@@ -300,6 +327,11 @@ export class VinylStage {
     this.shiftYTarget = fraction;
   }
 
+  /** Move the deck from its hero spot (0) to docked on the left (1), e.g. from scroll progress. */
+  setDock(progress: number) {
+    this.dockTarget = THREE.MathUtils.clamp(progress, 0, 1);
+  }
+
   /** Dolly toward (+1) or away from (-1) the target. */
   zoom(direction: 1 | -1) {
     const offset = this.camera.position.clone().sub(this.controls.target);
@@ -321,6 +353,7 @@ export class VinylStage {
     this.renderer.setAnimationLoop(null);
     this.abort.abort();
     this.resizeObserver.disconnect();
+    this.visibility.disconnect();
     this.controls.dispose();
     for (const tex of this.readyTextures.values()) tex.dispose();
     this.readyTextures.clear();
@@ -543,10 +576,12 @@ export class VinylStage {
     const w = Math.max(1, this.container.clientWidth);
     const h = Math.max(1, this.container.clientHeight);
     const wide = w >= 1024;
-    const sx = wide ? 0.16 : 0;
+    const d = wide ? smoothstep(this.dock) : 0;
+    const sx = wide ? THREE.MathUtils.lerp(HERO_SHIFT_X, DOCK_SHIFT_X, d) : 0;
     const sy = wide ? this.shiftY : 0;
     if (sx || sy) this.camera.setViewOffset(w, h, -w * sx, -h * sy, w, h);
     else this.camera.clearViewOffset();
+    this.camera.zoom = THREE.MathUtils.lerp(1, DOCK_ZOOM, d);
     this.camera.updateProjectionMatrix();
   }
 
@@ -663,9 +698,11 @@ export class VinylStage {
     this.lastTime = now;
 
     this.stepTween(dt);
-    if (this.shiftY !== this.shiftYTarget) {
+    if (this.shiftY !== this.shiftYTarget || this.dock !== this.dockTarget) {
       this.shiftY = damp(this.shiftY, this.shiftYTarget, 5, dt);
       if (Math.abs(this.shiftY - this.shiftYTarget) < 1e-4) this.shiftY = this.shiftYTarget;
+      this.dock = damp(this.dock, this.dockTarget, 9, dt); // smooths out wheel steps
+      if (Math.abs(this.dock - this.dockTarget) < 1e-4) this.dock = this.dockTarget;
       this.applyViewOffset();
       this.dirty = true;
     }
@@ -679,7 +716,7 @@ export class VinylStage {
       if (this.omega !== 0 || this.signature() !== before) this.dirty = true;
     }
 
-    if (this.dirty) {
+    if (this.dirty && this.visible) {
       this.renderer.render(this.scene, this.camera);
       this.dirty = false;
     }

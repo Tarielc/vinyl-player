@@ -7,6 +7,8 @@ import type { SkinId } from "@/lib/vinyl/skins";
 export interface VinylCanvasHandle {
   zoom(direction: 1 | -1): void;
   resetView(): void;
+  /** 0 = hero position, 1 = docked on the left (wide layouts). Cheap to call on every scroll frame. */
+  setDock(progress: number): void;
 }
 
 /**
@@ -47,6 +49,8 @@ export function VinylCanvas({
   const [stage, setStage] = useState<VinylStage | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const callbacks = useRef({ onRecordClick, onLoadState });
+  // Kept here too, so a stage created after the page was scrolled starts docked.
+  const dock = useRef(0);
   useEffect(() => {
     callbacks.current = { onRecordClick, onLoadState };
   });
@@ -61,6 +65,7 @@ export function VinylCanvas({
           onRecordClick: () => callbacks.current.onRecordClick?.(),
           onLoadState: (s) => callbacks.current.onLoadState?.(s),
         });
+        created.setDock(dock.current);
         setStage(created);
       })
       .catch((err: unknown) => {
@@ -87,6 +92,10 @@ export function VinylCanvas({
     () => ({
       zoom: (d) => stage?.zoom(d),
       resetView: () => stage?.resetView(),
+      setDock: (p) => {
+        dock.current = p;
+        stage?.setDock(p);
+      },
     }),
     [stage],
   );

@@ -37,9 +37,13 @@ Provider tokens are stored in AES-256-GCM-encrypted, httpOnly cookies (`SESSION_
 
 ## The 3D deck
 
-The home page is a hero built around a Three.js turntable (`lib/vinyl/`, mounted by `components/VinylCanvas.tsx`). Drag to orbit, scroll or pinch to zoom, and click the record to play or pause (Space works too).
+The home page is a hero built around a Three.js turntable (`lib/vinyl/`, mounted by `components/VinylCanvas.tsx`). Drag to orbit, pinch (or Ctrl+scroll) to zoom, and click the record to play or pause (Space works too).
 
 When a track loads, its cover is drawn onto the record label (with the title running round the rim), the platter spins up to 33⅓ rpm and the tonearm lifts, swings to the lead-in and lowers. While playing, the arm tracks the position across the side. Pausing lifts the arm, and switching tracks parks it, changes the label and cues the new record. At the end of a track, the next one in the list plays.
+
+Scrolling past the hero: on wide screens the deck slides into the left column and keeps spinning (and tracking) there while the turntable listings scroll on the right. On phones it scrolls away with the hero and a small spinning record stays in the now-playing bar. The plain mouse wheel scrolls the page; pinch (or Ctrl+wheel) zooms the deck.
+
+The listings are placeholder data in `lib/shop/catalog.ts`. The three that have a 3D model can be put on the deck with "Try it on the deck".
 
 Models live in `public/models/` (copied from `E:\BLENDER`). `lib/vinyl/skins.ts` maps each file's node names onto the rig:
 
@@ -56,6 +60,6 @@ To add a deck, export a .glb whose tonearm origin sits on its pivot, copy it to 
 - `lib/music/`: server providers (`spotify.ts`, `youtube.ts`) behind the `MusicProvider` interface (`provider.ts`), plus the registry, the session cookies, and the shared `types.ts`.
 - `lib/players/`: browser playback adapters (Spotify SDK, YouTube IFrame) behind `PlayerAdapter`, and the `usePlayer` hook.
 - `lib/vinyl/`: the Three.js stage (`stage.ts`), label drawing (`label.ts`) and the deck configs (`skins.ts`).
-- `components/`: `MusicApp` (the hero), `VinylCanvas`, `NowPlaying` (credits and transport), `CoverRail` (the queue as a row of covers), `MusicPicker` (the modal), `TrackList`.
+- `components/`: `MusicApp` (the hero), `VinylCanvas`, `NowPlaying` (credits and transport), `CoverRail` (the queue as a row of covers), `DockedPlayer` (the now-playing bar after the hero), `Shop` (turntables for sale), `MusicPicker` (the modal), `TrackList`.
 
 To add a provider (e.g. Apple Music), implement `MusicProvider` and `PlayerAdapter`, then register it in `lib/music/registry.ts`, `lib/music/types.ts` and `lib/players/usePlayer.ts`.
