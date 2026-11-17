@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-ink: #0c0b0a;
+  --color-ink-2: #161412;
+  --color-paper: #efe9dc;
+  --color-cue: #2b5cff;
+  --color-cue-hover: #4c76ff;
+  --color-amber: #e7b464;
+
+  /* Crate dividers (muted card stock). */
+  --color-olive: #8c8a6c;
+  --color-sand: #e6dfcc;
+  --color-slate: #8e98a3;
+  --color-tan: #a4875f;
+  --color-moss: #5d5f48;
+  --color-char: #262420;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument-serif), Georgia, serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-ink);
+}
+
+/* Film grain over the hero. */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* Card-stock texture for crate dividers. */
+.stock {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(0 0 0 / 0.08));
+}
+
+/* Thin seek / volume sliders. */
+.slider {
+  --fill: 0%;
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+.slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(to right, var(--color-paper) var(--fill), rgb(239 233 220 / 0.2) var(--fill));
+}
+.slider::-moz-range-track {
+  height: 2px;
+  background: linear-gradient(to right, var(--color-paper) var(--fill), rgb(239 233 220 / 0.2) var(--fill));
+}
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  border-radius: 9999px;
+  background: var(--color-paper);
+  transition: transform 150ms;
+}
+.slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--color-paper);
+}
+.slider:hover::-webkit-slider-thumb {
+  transform: scale(1.25);
+}
+.slider:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.slider:focus-visible {
+  outline: 2px solid var(--color-cue);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
 }
