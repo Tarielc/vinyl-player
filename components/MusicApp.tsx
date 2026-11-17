@@ -6,21 +6,19 @@ import { usePlayer } from "@/lib/players/usePlayer";
 import { PROVIDER_IDS, type ProviderId, type Track } from "@/lib/music/types";
 import { DEFAULT_SKIN, SKINS, type SkinId } from "@/lib/vinyl/skins";
 import type { LabelInfo, LoadState } from "@/lib/vinyl/stage";
-import { Crate } from "./Crate";
+import { CoverRail } from "./CoverRail";
 import { ArrowRightIcon, CloseIcon, MinusIcon, PlusIcon, ResetViewIcon, SearchIcon } from "./Icons";
 import { MusicPicker } from "./MusicPicker";
 import { NowPlaying } from "./NowPlaying";
 import { VinylCanvas, type VinylCanvasHandle } from "./VinylCanvas";
 
 type SearchParams = PageProps<"/">["searchParams"];
-type PickerMode = "search" | "library";
 
 interface PickerState {
   open: boolean;
-  /** Bumped to remount the picker on a given provider / mode. */
+  /** Bumped to remount the picker on a given provider. */
   key: number;
   provider?: ProviderId;
-  mode?: PickerMode;
 }
 
 const toLabel = (t: Track): LabelInfo => ({
@@ -41,9 +39,7 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
   const player = usePlayer(youtubeContainer);
   const { current, queue, index, hasNext, toggle } = player;
 
-  const openPicker = useCallback((provider?: ProviderId, mode?: PickerMode) => {
-    setPicker((p) => (provider || mode ? { open: true, key: p.key + 1, provider, mode } : { ...p, open: true }));
-  }, []);
+  const openPicker = useCallback(() => setPicker((p) => ({ ...p, open: true })), []);
 
   // Back from an OAuth sign-in: reopen the picker on that provider, or show the error.
   const onAuthReturn = useCallback((connected?: string, authError?: string) => {
@@ -126,7 +122,7 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
           </div>
         )}
 
-        <div className="absolute bottom-3 right-4 z-10 flex items-center gap-1 lg:bottom-30 lg:right-10">
+        <div className="absolute bottom-3 right-4 z-10 flex items-center gap-1 lg:bottom-8 lg:right-10">
           {/* Phones pinch to zoom; the buttons would crowd the deck switcher. */}
           <ViewButton label="Zoom out" onClick={() => view.current?.zoom(-1)} className="hidden sm:grid">
             <MinusIcon />
@@ -169,7 +165,7 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
       )}
 
       {/* Copy / now playing */}
-      <section className="relative z-10 px-5 pb-8 pt-4 lg:pointer-events-none lg:absolute lg:bottom-30 lg:left-10 lg:top-24 lg:flex lg:w-[min(460px,36vw)] lg:flex-col lg:justify-center lg:p-0 lg:*:pointer-events-auto">
+      <section className="relative z-10 px-5 pb-8 pt-4 lg:pointer-events-none lg:absolute lg:bottom-20 lg:left-10 lg:top-24 lg:flex lg:w-[min(460px,36vw)] lg:flex-col lg:justify-center lg:p-0 lg:*:pointer-events-auto">
         {current ? <NowPlaying player={player} onChangeRecord={() => openPicker()} /> : <Intro onStart={() => openPicker()} />}
 
         {/* YouTube's terms require its player to stay visible, so it gets a frame of its own. */}
@@ -190,12 +186,12 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
         </figure>
       </section>
 
-      <Crate
+      {/* Sits left of the view buttons on wide screens. */}
+      <CoverRail
         queue={queue}
         current={current}
         onPick={player.jump}
-        onBrowse={openPicker}
-        className="relative z-10 lg:pointer-events-none lg:absolute lg:inset-x-10 lg:bottom-0 lg:*:*:pointer-events-auto"
+        className="relative z-10 px-5 pb-10 lg:absolute lg:bottom-8 lg:right-[176px] lg:w-[min(520px,40vw)] lg:border-r lg:border-paper/15 lg:px-0 lg:pb-0 lg:pr-5"
       />
 
       <MusicPicker
@@ -204,7 +200,6 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
         onClose={() => setPicker((p) => ({ ...p, open: false }))}
         onPick={player.play}
         initialProvider={picker.provider}
-        initialMode={picker.mode}
       />
     </main>
   );

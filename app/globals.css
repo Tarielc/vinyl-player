@@ -8,13 +8,8 @@
   --color-cue-hover: #4c76ff;
   --color-amber: #e7b464;
 
-  /* Crate dividers (muted card stock). */
-  --color-olive: #8c8a6c;
+  /* Card stock for the music picker. */
   --color-sand: #e6dfcc;
-  --color-slate: #8e98a3;
-  --color-tan: #a4875f;
-  --color-moss: #5d5f48;
-  --color-char: #262420;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -35,7 +30,7 @@ body {
   mix-blend-mode: overlay;
 }
 
-/* Card-stock texture for crate dividers. */
+/* Card-stock texture (music picker). */
 .stock {
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E"),

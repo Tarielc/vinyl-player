@@ -9,7 +9,7 @@ import { TrackList } from "./TrackList";
 const chip =
   "rounded-full border border-ink/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] transition hover:border-ink hover:bg-ink hover:text-paper";
 
-export type Mode = "search" | "library";
+type Mode = "search" | "library";
 
 /** Result of an async load, tagged with the request key it belongs to. */
 interface Loaded<T> {
@@ -48,21 +48,19 @@ export function MusicPicker({
   onClose,
   onPick,
   initialProvider = "spotify",
-  initialMode = "search",
 }: {
   open: boolean;
   onClose: () => void;
   /** `list` is the search result / playlist the track was picked from. */
   onPick: (track: Track, list: Track[]) => void;
   initialProvider?: ProviderId;
-  initialMode?: Mode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [providers, setProviders] = useState<ProviderStatus[] | null>(null);
   const [providersError, setProvidersError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [active, setActive] = useState<ProviderId>(initialProvider);
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
 

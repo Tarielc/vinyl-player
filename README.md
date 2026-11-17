@@ -56,6 +56,6 @@ To add a deck, export a .glb whose tonearm origin sits on its pivot, copy it to 
 - `lib/music/`: server providers (`spotify.ts`, `youtube.ts`) behind the `MusicProvider` interface (`provider.ts`), plus the registry, the session cookies, and the shared `types.ts`.
 - `lib/players/`: browser playback adapters (Spotify SDK, YouTube IFrame) behind `PlayerAdapter`, and the `usePlayer` hook.
 - `lib/vinyl/`: the Three.js stage (`stage.ts`), label drawing (`label.ts`) and the deck configs (`skins.ts`).
-- `components/`: `MusicApp` (the hero), `VinylCanvas`, `NowPlaying` (credits and transport), `Crate` (the queue as tabbed dividers), `MusicPicker` (the modal), `TrackList`.
+- `components/`: `MusicApp` (the hero), `VinylCanvas`, `NowPlaying` (credits and transport), `CoverRail` (the queue as a row of covers), `MusicPicker` (the modal), `TrackList`.
 
 To add a provider (e.g. Apple Music), implement `MusicProvider` and `PlayerAdapter`, then register it in `lib/music/registry.ts`, `lib/music/types.ts` and `lib/players/usePlayer.ts`.
