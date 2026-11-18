@@ -18,7 +18,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable} ${serif.variable} antialiased`}>
+    // data-scroll-behavior: Next turns off the smooth scrolling in globals.css during route changes.
+    <html lang="en" data-scroll-behavior="smooth" className={`${sans.variable} ${mono.variable} ${serif.variable} antialiased`}>
       <body className="min-h-svh bg-ink font-sans text-paper">{children}</body>
     </html>
   );

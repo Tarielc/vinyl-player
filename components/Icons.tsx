@@ -91,3 +91,16 @@ export const CloseIcon = (p: IconProps) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </Icon>
 );
+
+export const ArrowLeftIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20 12H5M11 6l-6 6 6 6" />
+  </Icon>
+);
+
+export const BagIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5.5 8h13l-1 12h-11l-1-12Z" />
+    <path d="M9 10V7a3 3 0 0 1 6 0v3" />
+  </Icon>
+);

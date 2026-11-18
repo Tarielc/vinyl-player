@@ -117,3 +117,5 @@ export const CATALOG: readonly Turntable[] = [
 
 export const formatPrice = (usd: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(usd);
+
+export const driveLabel = (drive: Drive) => (drive === "Portable" ? drive : `${drive} drive`);

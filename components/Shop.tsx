@@ -1,47 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { CATALOG, DRIVES, formatPrice, type Drive, type Turntable, type TurntableArt } from "@/lib/shop/catalog";
+import Link from "next/link";
+import { addToCart, cartCount, removeFromCart, useCart } from "@/lib/shop/cart";
+import { CATALOG, DRIVES, driveLabel, formatPrice, type Drive, type Turntable } from "@/lib/shop/catalog";
 import type { SkinId } from "@/lib/vinyl/skins";
+import { TurntableArt } from "./TurntableArt";
 
 type Filter = "All" | Drive;
-
-/** Top-down drawing of a turntable in the listing's colours. The record spins on hover. */
-function TurntableArt({ art, className = "" }: { art: TurntableArt; className?: string }) {
-  const rx = art.shape === "rounded" ? 26 : art.shape === "case" ? 18 : 6;
-  return (
-    <svg viewBox="0 0 400 300" className={className} aria-hidden="true">
-      {art.shape === "case" && (
-        <rect x="168" y="20" width="64" height="26" rx="9" fill="none" stroke={art.plinth} strokeWidth="7" />
-      )}
-      <rect x="24" y="46" width="352" height="232" rx={rx} fill="#000" opacity="0.35" />
-      <rect x="24" y="38" width="352" height="232" rx={rx} fill={art.plinth} />
-      <rect x="24.5" y="38.5" width="351" height="231" rx={rx} fill="none" stroke="#fff" strokeOpacity="0.1" />
-
-      <circle cx="160" cy="154" r="108" fill={art.platter} />
-      <g className="origin-center [transform-box:fill-box] motion-safe:group-hover:animate-[spin_1.8s_linear_infinite]">
-        <circle cx="160" cy="154" r="100" fill="#121110" />
-        {[92, 82, 72, 62, 52].map((r) => (
-          <circle key={r} cx="160" cy="154" r={r} fill="none" stroke="#fff" strokeOpacity="0.07" />
-        ))}
-        <circle cx="160" cy="154" r="34" fill={art.label} />
-        <rect x="154" y="128" width="12" height="3" rx="1" fill="#000" opacity="0.35" />
-      </g>
-      <circle cx="160" cy="154" r="3.5" fill="#d9d9d9" />
-
-      {/* Tonearm */}
-      <rect x="326" y="200" width="12" height="12" rx="2" fill="#000" opacity="0.3" />
-      <circle cx="324" cy="80" r="21" fill="#000" fillOpacity="0.25" stroke={art.arm} strokeOpacity="0.5" strokeWidth="2" />
-      <circle cx="338" cy="60" r="9" fill={art.arm} />
-      <path d="M324 80 L308 200 L264 236" fill="none" stroke={art.arm} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M264 236 L248 246" stroke={art.arm} strokeWidth="11" strokeLinecap="square" />
-      <circle cx="324" cy="80" r="7" fill={art.arm} />
-
-      <circle cx="58" cy="244" r="9" fill="#000" fillOpacity="0.2" stroke="#fff" strokeOpacity="0.25" />
-      <circle cx="84" cy="244" r="9" fill="#000" fillOpacity="0.2" stroke="#fff" strokeOpacity="0.25" />
-    </svg>
-  );
-}
 
 function Listing({
   item,
@@ -81,7 +47,7 @@ function Listing({
           <p className="shrink-0 font-mono text-sm tabular-nums text-paper/90">{formatPrice(item.price)}</p>
         </div>
         <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/45">
-          {item.maker} · {item.drive === "Portable" ? "Portable" : `${item.drive} drive`}
+          {item.maker} · {driveLabel(item.drive)}
         </p>
         <p className="mt-3 text-sm leading-relaxed text-paper/65">{item.blurb}</p>
         <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.18em] text-paper/45">{item.specs.join(" · ")}</p>
@@ -124,15 +90,11 @@ export function Shop({
   className?: string;
 }) {
   const [filter, setFilter] = useState<Filter>("All");
-  const [cart, setCart] = useState<ReadonlySet<string>>(new Set());
+  const cart = useCart();
+  const inCart = cartCount(cart);
   const items = filter === "All" ? CATALOG : CATALOG.filter((t) => t.drive === filter);
 
-  const toggleCart = (id: string) =>
-    setCart((c) => {
-      const next = new Set(c);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
+  const toggleCart = (id: string) => (cart[id] ? removeFromCart(id) : addToCart(id));
 
   return (
     <section id="turntables" aria-labelledby="shop-title" className={className}>
@@ -141,7 +103,15 @@ export function Shop({
 
       <div className="lg:pointer-events-auto">
         <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-paper/55">
-          Catalogue · {CATALOG.length} turntables{cart.size ? ` · ${cart.size} in cart` : ""}
+          Catalogue · {CATALOG.length} turntables
+          {inCart > 0 && (
+            <>
+              {" · "}
+              <Link href="/cart" className="text-paper underline-offset-4 hover:underline">
+                {inCart} in cart →
+              </Link>
+            </>
+          )}
         </p>
         <h2 id="shop-title" className="mt-5 font-serif text-[clamp(48px,5.6vw,96px)] leading-[0.9] tracking-[-0.02em]">
           Take one <em className="text-paper/85">home.</em>
@@ -180,7 +150,7 @@ export function Shop({
               item={item}
               index={CATALOG.indexOf(item)}
               onDeck={item.skin === skin}
-              inCart={cart.has(item.id)}
+              inCart={Boolean(cart[item.id])}
               onPreview={onPreview}
               onToggleCart={() => toggleCart(item.id)}
             />

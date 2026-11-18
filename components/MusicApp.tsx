@@ -6,6 +6,7 @@ import { usePlayer } from "@/lib/players/usePlayer";
 import { PROVIDER_IDS, type ProviderId, type Track } from "@/lib/music/types";
 import { DEFAULT_SKIN, SKINS, type SkinId } from "@/lib/vinyl/skins";
 import type { LabelInfo, LoadState } from "@/lib/vinyl/stage";
+import { CartLink } from "./CartLink";
 import { CoverRail } from "./CoverRail";
 import { DockedPlayer } from "./DockedPlayer";
 import { ArrowRightIcon, CloseIcon, MinusIcon, PlusIcon, ResetViewIcon, SearchIcon } from "./Icons";
@@ -207,14 +208,18 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
             Vinyl <span className="text-paper/35">/</span> Player
           </Link>
           <DeckSwitcher skin={skin} onChange={setSkin} className="hidden lg:flex" />
-          <button
-            type="button"
-            onClick={() => openPicker()}
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-paper/20 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/80 backdrop-blur transition hover:border-paper/50 hover:text-paper sm:px-4"
-          >
-            <SearchIcon size={14} />
-            <span className="hidden sm:inline">Choose music</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openPicker()}
+              aria-label="Choose music"
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-paper/20 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/80 backdrop-blur transition hover:border-paper/50 hover:text-paper sm:px-4"
+            >
+              <SearchIcon size={14} />
+              <span className="hidden sm:inline">Choose music</span>
+            </button>
+            <CartLink />
+          </div>
         </header>
 
         {notice && (
