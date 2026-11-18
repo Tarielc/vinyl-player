@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { PlayerControls } from "@/lib/players/use-player";
 import { ArrowUpRightIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "@/components/icons";
+import { RecordOptions } from "./record-options";
 import { formatTime } from "./track-list";
 
 const PROVIDER_NAME = { spotify: "Spotify", youtube: "YouTube" } as const;
@@ -128,6 +129,8 @@ export function NowPlaying({ player, onChangeRecord }: { player: PlayerControls;
           />
         </label>
       </div>
+
+      <RecordOptions className="mt-5" />
 
       <button
         type="button"

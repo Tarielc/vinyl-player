@@ -51,7 +51,12 @@ Playback keeps going from page to page. The player lives in a `PlayerProvider` i
 
 The home page is a hero built around a Three.js turntable (`src/lib/vinyl/`, mounted by `src/components/vinyl/vinyl-canvas.tsx`). Drag to orbit, pinch (or Ctrl+scroll) to zoom, and click the record to play or pause (Space works too).
 
-When a track loads, its cover is drawn onto the record label (with the title running round the rim), the platter spins up to 33⅓ rpm and the tonearm lifts, swings to the lead-in and lowers. While playing, the arm tracks the position across the side. Pausing lifts the arm, and switching tracks parks it, changes the label and cues the new record. At the end of a track, the next one in the list plays.
+When a track loads, its cover is drawn onto the record label (with the title running round the rim), the platter spins up to 33⅓ rpm and the tonearm lifts, swings to the lead-in and lowers. While playing, the arm tracks the position across the side. Pausing lifts the arm, and switching tracks parks it, lifts the record off the platter, slides it away and brings the new one back on. At the end of a track, the next one in the list plays.
+
+- **Tonearm by hand.** Drag the arm over the record and let go to play from there (a readout shows where it will land). Let go over its rest to stop; play again and it swings back.
+- **Pressing.** Under the transport: *Black*, *Colour* (the cover's main colour, or a classic shade when the cover is grey or missing) or *Picture* (the cover across the whole record). Saved in `localStorage` with the needle-sounds setting (`src/lib/vinyl/prefs.ts`).
+- **Needle sounds.** Surface crackle while the stylus is in the groove, a thump when it lands, a click when it lifts and the run-out groove's tick in the last seconds of a side. They are synthesized with Web Audio (`src/lib/vinyl/needle-sounds.ts`) and follow the stage's needle events, at the player's volume. The music itself can't be mixed: the Spotify SDK and the YouTube frame don't expose their audio.
+- **The crate.** The queue is a row of sleeves in a crate; hover one to stand it up, click to play it. The playing record slides up out of its sleeve as it goes to the deck.
 
 Scrolling past the hero: on wide screens the deck slides into the left column and keeps spinning (and tracking) there while the turntable listings scroll on the right. On phones it scrolls away with the hero and a small spinning record stays in the now-playing bar. The plain mouse wheel scrolls the page; pinch (or Ctrl+wheel) zooms the deck.
 
@@ -66,7 +71,7 @@ Models live in `public/models/`. `src/lib/vinyl/skins.ts` maps each file's node 
 | Stave | `Crosley_Stave.glb` | Lid opened by holding the `Lid_Open` clip's last frame; volume knob follows the volume |
 | Minimal | `Vinyl2.glb` | Label is a material inside the disc mesh |
 
-To add a deck, export a .glb whose tonearm origin sits on its pivot, copy it to `public/models/`, and add an entry with its spinning nodes, label and arm angles (degrees about the pivot, measured from the arm's pose in the file). To sell it, set `skin` on a listing in `catalog.ts`.
+To add a deck, export a .glb whose tonearm origin sits on its pivot, copy it to `public/models/`, and add an entry with its spinning nodes, label, record (the vinyl's material, and the node holding the whole record if there is one) and arm angles (degrees about the pivot, measured from the arm's pose in the file). To sell it, set `skin` on a listing in `catalog.ts`.
 
 ## Code layout
 
@@ -91,8 +96,8 @@ src/
 
 - `src/lib/music/`: server providers (`spotify.ts`, `youtube.ts`) behind the `MusicProvider` interface (`provider.ts`), plus the registry, the session cookies, and the shared `types.ts`.
 - `src/lib/players/`: browser playback adapters (Spotify SDK, YouTube IFrame) behind `PlayerAdapter`, and the `usePlayer` hook (`use-player.ts`).
-- `src/lib/vinyl/`: the Three.js stage (`stage.ts`), label drawing (`label.ts`) and the deck configs (`skins.ts`).
-- `src/components/music/`: `PlayerProvider` (owns playback and the YouTube frame; mounted in the root layout), `MusicApp` (the hero), `NowPlaying` (credits and transport), `CoverRail` (the queue as a row of covers), `DockedPlayer` (the now-playing bar after the hero and on other pages), `MusicPicker` (the modal), `TrackList`.
+- `src/lib/vinyl/`: the Three.js stage (`stage.ts`), label and picture-disc drawing (`label.ts`), the deck configs (`skins.ts`), needle sounds (`needle-sounds.ts`) and the saved pressing / sound settings (`prefs.ts`).
+- `src/components/music/`: `PlayerProvider` (owns playback and the YouTube frame; mounted in the root layout), `MusicApp` (the hero), `NowPlaying` (credits and transport), `RecordOptions` (pressing and needle sounds), `SleeveCrate` (the queue as sleeves in a crate), `DockedPlayer` (the now-playing bar after the hero and on other pages), `MusicPicker` (the modal), `TrackList`.
 - `src/components/shop/`: `Shop` (turntables for sale), `CartView`, `CartLink`, `AddToCart`, `TurntableArt`.
 - `src/components/vinyl/`: `VinylCanvas` (mounts the stage) and `TurntableViewer` (the deck on a product page).
 

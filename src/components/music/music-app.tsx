@@ -3,16 +3,18 @@
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PROVIDER_IDS, type ProviderId, type Track } from "@/lib/music/types";
+import { useRecordPrefs } from "@/lib/vinyl/prefs";
 import { DEFAULT_SKIN, SKINS, type SkinId } from "@/lib/vinyl/skins";
 import type { LabelInfo, LoadState } from "@/lib/vinyl/stage";
 import { ArrowRightIcon, CloseIcon, MinusIcon, PlusIcon, ResetViewIcon, SearchIcon } from "@/components/icons";
 import { CartLink } from "@/components/shop/cart-link";
 import { Shop } from "@/components/shop/shop";
 import { VinylCanvas, type VinylCanvasHandle } from "@/components/vinyl/vinyl-canvas";
-import { CoverRail } from "./cover-rail";
 import { MusicPicker } from "./music-picker";
 import { NowPlaying } from "./now-playing";
 import { usePlayerControls, usePlayerStage } from "./player-provider";
+import { SleeveCrate } from "./sleeve-crate";
+import { formatTime } from "./track-list";
 
 type SearchParams = PageProps<"/">["searchParams"];
 
@@ -40,6 +42,9 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
   const [skin, setSkin] = useState<SkinId>(DEFAULT_SKIN);
   const [load, setLoad] = useState<LoadState | null>(null);
   const [docked, setDocked] = useState(false);
+  /** The tonearm in hand: where it would land (0..1), or over its rest. */
+  const [scrub, setScrub] = useState<number | "rest" | null>(null);
+  const prefs = useRecordPrefs();
   const youtubeSlot = useRef<HTMLDivElement>(null);
   const view = useRef<VinylCanvasHandle>(null);
   const page = useRef<HTMLElement>(null);
@@ -66,6 +71,22 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
     if (current) void toggle();
     else openPicker();
   }, [current, toggle, openPicker]);
+
+  const duration = player.durationMs || current?.durationMs || 0;
+  const { seek, playing } = player;
+  // The arm lowered by hand: play from there.
+  const onNeedleDrop = useCallback(
+    async (fraction: number) => {
+      if (!duration) return;
+      await seek(Math.round(fraction * duration));
+      if (!playing) await toggle();
+    },
+    [duration, seek, playing, toggle],
+  );
+  // Put back on its rest: stop.
+  const onArmRest = useCallback(() => {
+    if (playing) void toggle();
+  }, [playing, toggle]);
 
   // Space bar: play / pause.
   useEffect(() => {
@@ -170,12 +191,26 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
             preload={preload}
             playing={player.playing}
             positionMs={player.positionMs}
-            durationMs={player.durationMs || current?.durationMs || 0}
+            durationMs={duration}
             volume={player.volume}
+            disc={prefs.disc}
+            sounds={prefs.sounds}
             frameShift={youtube && !docked ? 0.11 : 0}
             onRecordClick={onRecordClick}
+            onNeedleDrop={onNeedleDrop}
+            onArmRest={onArmRest}
+            onArmScrub={setScrub}
             onLoadState={setLoad}
           />
+
+          {scrub !== null && (
+            <p
+              aria-live="polite"
+              className="pointer-events-none absolute left-1/2 top-20 z-10 -translate-x-1/2 rounded-full border border-paper/20 bg-ink/70 px-3.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/85 tabular-nums backdrop-blur lg:left-[calc(64%-39%*var(--dock,0))] lg:top-24"
+            >
+              {scrub === "rest" ? "Back on the rest · stop" : `Drop at ${formatTime(scrub * duration)} / ${formatTime(duration)}`}
+            </p>
+          )}
 
           {(loading || load?.error) && (
             <div className="pointer-events-none absolute inset-0 grid place-items-center lg:pl-[32%]">
@@ -253,7 +288,7 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
         </figure>
 
         {/* Sits left of the view buttons on wide screens. */}
-        <CoverRail
+        <SleeveCrate
           queue={queue}
           current={current}
           onPick={player.jump}
@@ -326,7 +361,7 @@ function Intro({ onStart }: { onStart: () => void }) {
         </a>
       </div>
       <p className="mt-6 font-mono text-[10px] uppercase leading-relaxed tracking-[0.22em] text-paper/40">
-        Drag to orbit · Pinch to zoom · Click the record to play
+        Drag to orbit · Pinch to zoom · Click the record to play · Drag the arm to cue
       </p>
     </div>
   );

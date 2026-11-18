@@ -5,10 +5,13 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { drawLabel, type LabelInfo } from "./label";
+import { pressLabel, type LabelInfo } from "./label";
 import { getSkin, type KnobConfig, type SkinConfig, type SkinId } from "./skins";
 
 export type { LabelInfo };
+
+/** How the record is pressed: plain black, the cover's colour, or the cover across the whole disc. */
+export type DiscStyle = "black" | "colour" | "picture";
 
 const RAD = THREE.MathUtils.degToRad;
 /** 33⅓ rpm in rad/s. */
@@ -17,7 +20,12 @@ const OMEGA = ((100 / 3) / 60) * Math.PI * 2;
 const MAX_TEXTURES = 10;
 /** Swing distance above which the arm lifts, travels and lowers instead of sliding. */
 const TRAVEL_EPS = RAD(0.6);
-const SWAP_SECONDS = 0.7;
+/** Changing records: the old one lifts off and slides away, the new one slides in and drops. */
+const SWAP_SECONDS = 1.3;
+/** The run-out groove ticks once a revolution over the last few seconds of a side. */
+const RUNOUT_MS = 3800;
+/** After the arm is dropped or rested, playback reports that disagree are ignored this long. */
+const DROP_HOLD_MS = 1500;
 /** Wide layouts: horizontal deck offset (fraction of width) and size, in the hero vs docked left. */
 const HERO_SHIFT_X = 0.16;
 const DOCK_SHIFT_X = -0.23;
@@ -37,10 +45,23 @@ export interface LoadState {
   error?: string;
 }
 
+/** `down`: the stylus touched the record. `up`: it left it. `runout`: one turn of the run-out groove. */
+export type NeedleEvent = "down" | "up" | "runout";
+
 export interface StageEvents {
   onLoadState?(state: LoadState): void;
   /** The record (platter or label) was clicked without dragging. Without it the record isn't clickable. */
   onRecordClick?(): void;
+  /**
+   * The tonearm was dragged and lowered onto the record at `fraction` (0 = start, 1 = end of the
+   * side). Without it the arm can't be dragged.
+   */
+  onNeedleDrop?(fraction: number): void;
+  /** The tonearm was dragged back to its rest. */
+  onArmRest?(): void;
+  /** While the arm is dragged: where it would drop (0..1), `"rest"` over the rest, null when let go. */
+  onArmScrub?(at: number | "rest" | null): void;
+  onNeedle?(event: NeedleEvent): void;
 }
 
 /**
@@ -57,6 +78,20 @@ interface Knob {
   angle: number;
 }
 
+/** The record: what lifts off the platter when records are changed. */
+interface RecordParts {
+  /** Moved as a whole; sits on the spindle axis, so its world position doesn't change as it spins. */
+  carrier: THREE.Object3D;
+  /** `carrier.position` on the platter, in its parent's space. */
+  base: THREE.Vector3;
+  baseWorld: THREE.Vector3;
+  vinyl: THREE.Mesh[];
+  vinylOriginal: (THREE.Material | THREE.Material[])[];
+  /** Every mesh in the carrier (faded while the record is in flight). */
+  meshes: THREE.Mesh[];
+  radius: number;
+}
+
 interface Rig {
   cfg: SkinConfig;
   root: THREE.Object3D;
@@ -65,8 +100,13 @@ interface Rig {
   labelOriginal: (THREE.Material | THREE.Material[])[];
   labelMaterial: THREE.MeshStandardMaterial;
   hideWithCover: THREE.Object3D[];
+  record: RecordParts;
+  colourMaterial: THREE.MeshPhysicalMaterial;
+  pictureMaterial: THREE.MeshPhysicalMaterial;
   swing: THREE.Object3D;
   lift: THREE.Object3D;
+  /** Arm meshes plus an invisible, wider box along the arm, so the thin tube is easy to grab. */
+  armPickables: THREE.Object3D[];
   rest: number;
   leadIn: number;
   leadOut: number;
@@ -74,6 +114,23 @@ interface Rig {
   knobs: Knob[];
   pickables: THREE.Object3D[];
   frame: THREE.Sphere;
+}
+
+/** A drawn label, plus what coloured and picture pressings need. */
+interface Pressing {
+  label: THREE.Texture;
+  colour: THREE.Color;
+  drawPicture: (() => HTMLCanvasElement) | null;
+  picture?: THREE.Texture;
+}
+
+interface ArmGrab {
+  pointerId: number;
+  /** Swing angle minus the pointer's angle about the pivot when grabbed. */
+  offset: number;
+  /** Last raw pointer angle, to unwrap across ±π. */
+  pointer: number;
+  target: number;
 }
 
 interface Tween {
@@ -116,6 +173,31 @@ function studioEnvironment(): THREE.Scene {
   return env;
 }
 
+/** A cover colour made into vinyl: never muddy or too dark to read; greys stay grey (smoke). */
+function vinylColour(css: string): THREE.Color {
+  const c = new THREE.Color().setStyle(css, THREE.SRGBColorSpace);
+  const hsl = c.getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
+  const s = hsl.s < 0.18 ? hsl.s : Math.max(hsl.s, 0.55);
+  return c.setHSL(hsl.h, s, THREE.MathUtils.clamp(hsl.l, 0.3, 0.55), THREE.SRGBColorSpace);
+}
+
+function disposePressing(p: Pressing) {
+  p.label.dispose();
+  p.picture?.dispose();
+}
+
+/** Sets opacity on materials, switching them to transparent only while they need it. */
+function setOpacity(mats: THREE.Material[], opacity: number) {
+  for (const m of mats) {
+    const transparent = opacity < 0.999;
+    if (m.transparent !== transparent) {
+      m.transparent = transparent;
+      m.needsUpdate = true;
+    }
+    m.opacity = opacity;
+  }
+}
+
 function disposeScene(scene: THREE.Scene) {
   scene.traverse((o) => {
     if (!isMesh(o)) return;
@@ -147,15 +229,32 @@ export class VinylStage {
   private wantedSkin: SkinId | null = null;
 
   // Labels.
-  private readonly textures = new Map<string, Promise<THREE.Texture>>();
-  private readonly readyTextures = new Map<string, THREE.Texture>();
+  private readonly textures = new Map<string, Promise<Pressing>>();
+  private readonly readyTextures = new Map<string, Pressing>();
   private track: LabelInfo | null = null;
   private labelKey: string | null = null;
-  private swap: { t: number; key: string; tex: THREE.Texture; applied: boolean } | null = null;
+  private disc: DiscStyle = "black";
+  private swap: {
+    t: number;
+    key: string;
+    pressing: Pressing;
+    applied: boolean;
+    /** World direction the record slides off in (toward the viewer's right). */
+    dir: THREE.Vector3;
+  } | null = null;
+  private readonly reducedMotion =
+    typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // Playback inputs.
   private playback: PlaybackState & { at: number } = { playing: false, positionMs: 0, durationMs: 0, at: 0 };
   private volume = 0.8;
+  /** Set when the arm was dropped or rested by hand, until playback catches up. */
+  private hold: { until: number; playing: boolean } | null = null;
+
+  // Tonearm by hand.
+  private grab: ArmGrab | null = null;
+  /** Put back on its rest by hand: stays there until playback starts again. */
+  private armRested = false;
 
   // Animated state.
   private omega = 0;
@@ -163,6 +262,10 @@ export class VinylStage {
   private swingVel = 0;
   private lift = 0;
   private motor = 0;
+  /** Total platter turn (rad), for the run-out ticks. */
+  private platterTurn = 0;
+  private inGroove = false;
+  private flight = 0;
 
   // Camera.
   private tween: Tween | null = null;
@@ -242,6 +345,8 @@ export class VinylStage {
       },
       { capture: true, signal: this.abort.signal },
     );
+    // Likewise, grabbing the tonearm keeps the pointer from orbiting the camera.
+    if (events.onNeedleDrop) this.bindArm(canvas);
 
     const controls = new OrbitControls(this.camera, canvas);
     controls.enableDamping = true;
@@ -294,13 +399,24 @@ export class VinylStage {
     }
     if (this.disposed || this.wantedSkin !== id) return;
 
-    if (this.rig) this.scene.remove(this.rig.root);
+    if (this.rig) {
+      // Put the old deck's record back, in case it was changed mid-flight.
+      const { record } = this.rig;
+      record.carrier.position.copy(record.base);
+      for (const mesh of record.meshes) setOpacity(materials(mesh), 1);
+      this.scene.remove(this.rig.root);
+    }
+    if (this.inGroove) {
+      this.inGroove = false;
+      this.events.onNeedle?.("up");
+    }
     this.scene.add(rig.root);
     this.rig = rig;
     // A new deck starts with its arm parked; the state machine cues it again.
     this.swingAngle = rig.rest;
     this.swingVel = 0;
     this.lift = 0;
+    this.grab = null;
     this.applyLabel(rig, this.labelKey ? (this.readyTextures.get(this.labelKey) ?? null) : null);
     this.pose(rig);
     this.updateHome();
@@ -322,7 +438,29 @@ export class VinylStage {
   }
 
   setPlayback(state: PlaybackState) {
-    this.playback = { ...state, at: performance.now() };
+    const now = performance.now();
+    const hold = this.hold;
+    if (hold && now < hold.until) {
+      // Just dropped or rested by hand: wait for the player to agree before following it again,
+      // so the arm doesn't bounce while the seek or pause is in flight.
+      if (state.playing !== hold.playing) return;
+      if (hold.playing) {
+        const expected = this.playback.positionMs + (now - this.playback.at);
+        if (Math.abs(state.positionMs - expected) > 2500) return;
+      }
+    }
+    this.hold = null;
+    if (state.playing && !this.playback.playing) this.armRested = false;
+    this.playback = { ...state, at: now };
+  }
+
+  /** How records are pressed: black, the cover's colour, or a picture disc. */
+  setDisc(style: DiscStyle) {
+    if (style === this.disc) return;
+    this.disc = style;
+    const rig = this.rig;
+    if (rig && !this.swap) this.applyLabel(rig, this.labelKey ? (this.readyTextures.get(this.labelKey) ?? null) : null);
+    this.dirty = true;
   }
 
   setVolume(volume: number) {
@@ -362,12 +500,14 @@ export class VinylStage {
     this.resizeObserver.disconnect();
     this.visibility.disconnect();
     this.controls.dispose();
-    for (const tex of this.readyTextures.values()) tex.dispose();
+    for (const pressing of this.readyTextures.values()) disposePressing(pressing);
     this.readyTextures.clear();
     this.textures.clear();
     for (const p of this.rigs.values()) {
       p.then((rig) => {
         rig.labelMaterial.dispose();
+        rig.colourMaterial.dispose();
+        rig.pictureMaterial.dispose();
         rig.root.traverse((o) => {
           if (!isMesh(o)) return;
           o.geometry.dispose();
@@ -465,11 +605,36 @@ export class VinylStage {
     }
     const labelMaterial = new THREE.MeshStandardMaterial({ roughness: 0.48, metalness: 0, envMapIntensity: 0.6 });
 
-    const hideWithCover: THREE.Object3D[] = [];
+    const hideWithCover: THREE.Mesh[] = [];
     if (cfg.hideWithCover?.length) {
       const names = new Set(cfg.hideWithCover);
       root.traverse((o) => isMesh(o) && materials(o).some((m) => names.has(m.name)) && hideWithCover.push(o));
     }
+
+    const record = this.buildRecord(cfg, root, find, spinners, labels, hideWithCover);
+    // Solid coloured vinyl under a glossy coat. (Transmission was tried for a translucent look,
+    // but on these discs it refracts the label across the whole record.)
+    const colourMaterial = new THREE.MeshPhysicalMaterial({
+      roughness: 0.3,
+      metalness: 0,
+      clearcoat: 0.8,
+      clearcoatRoughness: 0.12,
+      sheen: 0.35,
+      sheenRoughness: 0.5,
+      envMapIntensity: 1,
+    });
+    // Keep the grooves: the vinyl's own normal / roughness maps, on its own UVs.
+    const source = materials(record.vinyl[0])[0] as THREE.MeshStandardMaterial;
+    colourMaterial.normalMap = source.normalMap ?? null;
+    if (source.normalMap) colourMaterial.normalScale.copy(source.normalScale);
+    colourMaterial.roughnessMap = source.roughnessMap ?? null;
+    const pictureMaterial = new THREE.MeshPhysicalMaterial({
+      roughness: 0.38,
+      metalness: 0,
+      clearcoat: 1,
+      clearcoatRoughness: 0.06,
+      envMapIntensity: 0.8,
+    });
 
     // Tonearm: re-parent under swing (vertical axis through the pivot) and lift
     // (horizontal axis across the arm), keeping its world transform.
@@ -523,6 +688,22 @@ export class VinylStage {
       box.union(part.copy(o.geometry.boundingBox!).applyMatrix4(o.matrixWorld));
     });
 
+    // A fatter, invisible stand-in along the arm, from the pivot to the stylus: the tube itself
+    // is a few pixels wide. Added after framing so it doesn't count.
+    const armPickables: THREE.Object3D[] = [lift];
+    const tipLocal = lift.worldToLocal(tip.clone());
+    const length = Math.hypot(tipLocal.x, tipLocal.z);
+    if (length > 0) {
+      const width = length * 0.14;
+      const proxy = new THREE.Mesh(
+        new THREE.BoxGeometry(length * 1.08, width, width),
+        new THREE.MeshBasicMaterial({ visible: false }),
+      );
+      proxy.position.set(length * 0.5, tipLocal.y * 0.5, 0);
+      proxy.name = "ArmGrab";
+      lift.add(proxy);
+    }
+
     return {
       cfg,
       root,
@@ -531,8 +712,12 @@ export class VinylStage {
       labelOriginal: labels.map((m) => m.material),
       labelMaterial,
       hideWithCover,
+      record,
+      colourMaterial,
+      pictureMaterial,
       swing,
       lift,
+      armPickables,
       rest: RAD(num("swing_rest_deg", cfg.arm.restDeg)),
       leadIn: RAD(cfg.arm.leadInDeg),
       leadOut: RAD(num("swing_leadout_deg", cfg.arm.leadOutDeg)),
@@ -540,6 +725,81 @@ export class VinylStage {
       knobs,
       pickables: [...spinners, ...labels],
       frame: box.getBoundingSphere(new THREE.Sphere()),
+    };
+  }
+
+  /**
+   * Finds the record and gives it a carrier that can lift it off the platter, plus a second
+   * planar UV set (uv2) that maps the whole disc onto a square, for picture discs.
+   */
+  private buildRecord(
+    cfg: SkinConfig,
+    root: THREE.Object3D,
+    find: (name: string) => THREE.Object3D,
+    spinners: THREE.Object3D[],
+    labels: THREE.Mesh[],
+    hideWithCover: THREE.Mesh[],
+  ): RecordParts {
+    const names = new Set(cfg.record.vinyl);
+    const vinyl: THREE.Mesh[] = [];
+    for (const s of spinners) {
+      s.traverse((o) => {
+        if (isMesh(o) && !vinyl.includes(o) && materials(o).some((m) => names.has(m.name))) vinyl.push(o);
+      });
+    }
+    if (!vinyl.length) throw new Error(`${cfg.url} has no record.`);
+
+    let carrier: THREE.Object3D;
+    if (cfg.record.node) carrier = find(cfg.record.node);
+    else {
+      // Group the record's meshes on the spindle axis of the spinner they turn with.
+      const spinner = spinners.find((s) => s.getObjectById(vinyl[0].id)) ?? vinyl[0].parent!;
+      carrier = new THREE.Group();
+      carrier.name = "Record";
+      spinner.add(carrier);
+      root.updateMatrixWorld(true);
+      for (const m of [...vinyl, ...labels, ...hideWithCover]) carrier.attach(m);
+    }
+    root.updateMatrixWorld(true);
+
+    const meshes: THREE.Mesh[] = [];
+    carrier.traverse((o) => isMesh(o) && meshes.push(o));
+    // Own copies, so fading the record in flight leaves the rest of the deck alone (labels have theirs).
+    for (const m of meshes) {
+      if (labels.includes(m)) continue;
+      m.material = Array.isArray(m.material) ? m.material.map((x) => x.clone()) : m.material.clone();
+    }
+
+    const toCarrier = new THREE.Matrix4();
+    const inverse = carrier.matrixWorld.clone().invert();
+    const v = new THREE.Vector3();
+    const each = (mesh: THREE.Mesh, fn: (i: number) => void) => {
+      toCarrier.multiplyMatrices(inverse, mesh.matrixWorld);
+      const pos = mesh.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(toCarrier);
+        fn(i);
+      }
+    };
+    let radius = 0;
+    for (const m of vinyl) each(m, () => (radius = Math.max(radius, Math.hypot(v.x, v.z))));
+    for (const m of meshes) {
+      const uv = new Float32Array(m.geometry.attributes.position.count * 2);
+      each(m, (i) => {
+        uv[i * 2] = v.x / (2 * radius) + 0.5;
+        uv[i * 2 + 1] = v.z / (2 * radius) + 0.5;
+      });
+      m.geometry.setAttribute("uv2", new THREE.BufferAttribute(uv, 2));
+    }
+
+    return {
+      carrier,
+      base: carrier.position.clone(),
+      baseWorld: carrier.getWorldPosition(new THREE.Vector3()),
+      vinyl,
+      vinylOriginal: vinyl.map((m) => m.material),
+      meshes,
+      radius: radius * carrier.getWorldScale(new THREE.Vector3()).x,
     };
   }
 
@@ -551,15 +811,16 @@ export class VinylStage {
       this.textures.set(info.key, existing);
       return;
     }
-    const p = drawLabel(info).then((canvas) => {
-      const tex = new THREE.CanvasTexture(canvas);
+    const p = pressLabel(info).then(({ label, colour, drawPicture }): Pressing => {
+      const tex = new THREE.CanvasTexture(label);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.flipY = false;
       tex.channel = 1; // the label's planar uv1
       tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-      if (this.disposed || !this.textures.has(info.key)) tex.dispose();
-      else this.readyTextures.set(info.key, tex);
-      return tex;
+      const pressing: Pressing = { label: tex, colour: vinylColour(colour), drawPicture };
+      if (this.disposed || !this.textures.has(info.key)) disposePressing(pressing);
+      else this.readyTextures.set(info.key, pressing);
+      return pressing;
     });
     this.textures.set(info.key, p);
 
@@ -567,20 +828,50 @@ export class VinylStage {
       if (this.textures.size <= MAX_TEXTURES) break;
       if (key === this.labelKey || key === this.track?.key || key === this.swap?.key) continue;
       this.textures.delete(key);
-      this.readyTextures.get(key)?.dispose();
+      const ready = this.readyTextures.get(key);
+      if (ready) disposePressing(ready);
       this.readyTextures.delete(key);
     }
   }
 
-  private applyLabel(rig: Rig, tex: THREE.Texture | null) {
-    if (tex) {
-      rig.labelMaterial.map = tex;
+  /** The picture-disc texture for `p`, drawn on first use; null when the cover couldn't be loaded. */
+  private pictureOf(p: Pressing): THREE.Texture | null {
+    if (!p.picture && p.drawPicture) {
+      const tex = new THREE.CanvasTexture(p.drawPicture());
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.flipY = false;
+      tex.channel = 2; // the record's planar uv2
+      tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      p.picture = tex;
+    }
+    return p.picture ?? null;
+  }
+
+  /** Puts `p` on the record: its label, and the vinyl pressed as the current disc style. Null: the model's own. */
+  private applyLabel(rig: Rig, p: Pressing | null) {
+    const style = p ? this.disc : "black";
+    const picture = p && style === "picture" ? this.pictureOf(p) : null;
+
+    if (picture) {
+      rig.pictureMaterial.map = picture;
+      rig.pictureMaterial.needsUpdate = true;
+      for (const m of rig.labels) m.material = rig.pictureMaterial;
+    } else if (p) {
+      rig.labelMaterial.map = p.label;
       rig.labelMaterial.needsUpdate = true;
       for (const m of rig.labels) m.material = rig.labelMaterial;
     } else {
       rig.labels.forEach((m, i) => (m.material = rig.labelOriginal[i]));
     }
-    for (const o of rig.hideWithCover) o.visible = !tex;
+    for (const o of rig.hideWithCover) o.visible = !p;
+
+    if (picture) for (const m of rig.record.vinyl) m.material = rig.pictureMaterial;
+    else if (p && style !== "black") {
+      // Colour, or a picture disc without a picture: the cover's colour.
+      rig.colourMaterial.color.copy(p.colour);
+      rig.colourMaterial.sheenColor.copy(p.colour);
+      for (const m of rig.record.vinyl) m.material = rig.colourMaterial;
+    } else rig.record.vinyl.forEach((m, i) => (m.material = rig.record.vinylOriginal[i]));
   }
 
   // ---------------------------------------------------------------- camera
@@ -672,17 +963,145 @@ export class VinylStage {
 
   // ---------------------------------------------------------------- pointer
 
+  /** Casts a ray from the camera through the pointer. */
+  private aim(e: PointerEvent) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    return this.raycaster;
+  }
+
+  /** The record has a track's cover on it and is on the platter, so the arm can be put on it. */
+  private armUsable() {
+    return Boolean(this.track && this.track.key === this.labelKey && !this.swap && this.playback.durationMs > 0);
+  }
+
+  private hitsArm(e: PointerEvent) {
+    const rig = this.rig;
+    if (!rig || !this.events.onNeedleDrop || !this.armUsable()) return false;
+    return this.aim(e).intersectObjects(rig.armPickables, true).length > 0;
+  }
+
+  /** The pointer's angle about the arm pivot (the same convention as the swing), or null. */
+  private pointerAngle(e: PointerEvent): number | null {
+    const rig = this.rig;
+    if (!rig) return null;
+    const pivot = rig.swing.getWorldPosition(new THREE.Vector3());
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -pivot.y);
+    const hit = this.aim(e).ray.intersectPlane(plane, new THREE.Vector3());
+    if (!hit) return null;
+    return Math.atan2(-(hit.z - pivot.z), hit.x - pivot.x);
+  }
+
+  /** Where `angle` puts the stylus on the side: 0 at the lead-in, 1 at the lead-out. */
+  private fractionAt(rig: Rig, angle: number) {
+    return (angle - rig.leadIn) / (rig.leadOut - rig.leadIn);
+  }
+
+  /** Released this far toward the rest (fraction of the way there), the arm goes back on it. */
+  private restsAt(rig: Rig, angle: number) {
+    const rest = this.fractionAt(rig, rig.rest);
+    return this.fractionAt(rig, angle) < rest * 0.45;
+  }
+
+  private scrubAt(rig: Rig, angle: number): number | "rest" {
+    return this.restsAt(rig, angle) ? "rest" : THREE.MathUtils.clamp(this.fractionAt(rig, angle), 0, 1);
+  }
+
+  /**
+   * Pick up the tonearm and swing it over the record; let go to lower it there (a seek), or on
+   * its rest (a pause). Capture-phase listeners registered before OrbitControls, so a grab never orbits.
+   */
+  private bindArm(canvas: HTMLCanvasElement) {
+    const signal = this.abort.signal;
+    const opts = { capture: true, signal };
+    const release = (e: PointerEvent, cancelled: boolean) => {
+      const grab = this.grab;
+      const rig = this.rig;
+      if (!grab || grab.pointerId !== e.pointerId) return;
+      e.stopImmediatePropagation();
+      this.grab = null;
+      canvas.style.cursor = "";
+      this.events.onArmScrub?.(null);
+      if (!rig || cancelled || !this.armUsable()) return;
+      const now = performance.now();
+      if (this.restsAt(rig, grab.target)) {
+        this.armRested = true;
+        this.playback = { ...this.playback, playing: false, at: now };
+        this.hold = { until: now + DROP_HOLD_MS, playing: false };
+        this.events.onArmRest?.();
+      } else {
+        const fraction = THREE.MathUtils.clamp(this.fractionAt(rig, grab.target), 0, 0.995);
+        this.armRested = false;
+        // Assume the player follows, so the arm lowers where it was let go instead of chasing old reports.
+        this.playback = { ...this.playback, playing: true, positionMs: fraction * this.playback.durationMs, at: now };
+        this.hold = { until: now + DROP_HOLD_MS, playing: true };
+        this.events.onNeedleDrop?.(fraction);
+      }
+    };
+
+    canvas.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (this.grab || (e.pointerType === "mouse" && e.button !== 0) || !this.hitsArm(e)) return;
+        const angle = this.pointerAngle(e);
+        if (angle === null) return;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        canvas.setPointerCapture(e.pointerId);
+        this.grab = { pointerId: e.pointerId, offset: this.swingAngle - angle, pointer: angle, target: this.swingAngle };
+        this.tween = null;
+        canvas.style.cursor = "grabbing";
+        const rig = this.rig;
+        if (rig) this.events.onArmScrub?.(this.scrubAt(rig, this.swingAngle));
+      },
+      opts,
+    );
+    canvas.addEventListener(
+      "pointermove",
+      (e) => {
+        const grab = this.grab;
+        const rig = this.rig;
+        if (!grab || grab.pointerId !== e.pointerId || !rig) return;
+        e.stopImmediatePropagation();
+        let angle = this.pointerAngle(e);
+        if (angle === null) return;
+        while (angle - grab.pointer > Math.PI) angle -= Math.PI * 2;
+        while (angle - grab.pointer < -Math.PI) angle += Math.PI * 2;
+        grab.pointer = angle;
+        const lo = Math.min(rig.rest, rig.leadIn, rig.leadOut);
+        const hi = Math.max(rig.rest, rig.leadIn, rig.leadOut);
+        grab.target = THREE.MathUtils.clamp(angle + grab.offset, lo, hi);
+        this.events.onArmScrub?.(this.scrubAt(rig, grab.target));
+      },
+      opts,
+    );
+    canvas.addEventListener("pointerup", (e) => release(e, false), opts);
+    canvas.addEventListener("pointercancel", (e) => release(e, true), opts);
+    // Touch: pointerdown comes first, so a grab can stop the page from scrolling under the finger.
+    canvas.addEventListener(
+      "touchstart",
+      (e) => {
+        if (this.grab) e.preventDefault();
+      },
+      { passive: false, signal },
+    );
+    canvas.addEventListener(
+      "touchmove",
+      (e) => {
+        if (this.grab) e.preventDefault();
+      },
+      { passive: false, signal },
+    );
+  }
+
   private bindPointer(canvas: HTMLCanvasElement) {
     const signal = this.abort.signal;
     let down: { x: number; y: number; t: number } | null = null;
-    const ndc = new THREE.Vector2();
     const hitsRecord = (e: PointerEvent) => {
       const rig = this.rig;
       if (!rig) return false;
-      const r = canvas.getBoundingClientRect();
-      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-      this.raycaster.setFromCamera(ndc, this.camera);
-      return this.raycaster.intersectObjects(rig.pickables, true).length > 0;
+      return this.aim(e).intersectObjects(rig.pickables, true).length > 0;
     };
     canvas.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY, t: performance.now() }), {
       signal,
@@ -701,11 +1120,16 @@ export class VinylStage {
     canvas.addEventListener(
       "pointermove",
       (e) => {
-        if (e.buttons || pending || e.pointerType !== "mouse") return;
+        if (e.buttons || pending || e.pointerType !== "mouse" || this.grab) return;
         pending = true;
         requestAnimationFrame(() => {
           pending = false;
-          canvas.style.cursor = this.events.onRecordClick && hitsRecord(e) ? "pointer" : "grab";
+          if (this.grab) return;
+          canvas.style.cursor = this.hitsArm(e)
+            ? "ew-resize"
+            : this.events.onRecordClick && hitsRecord(e)
+              ? "pointer"
+              : "grab";
         });
       },
       { signal },
@@ -762,28 +1186,40 @@ export class VinylStage {
     const progress = this.progress(now);
     const { playing } = this.playback;
 
-    // Swap the label once the new cover is drawn and the arm is clear of the record.
-    if (want && want !== this.labelKey && !this.swap) {
-      const tex = this.readyTextures.get(want);
+    // Change records once the new cover is drawn and the arm is clear: the old one lifts off and
+    // slides away toward the viewer's right, the new one comes back the same way and drops on.
+    if (want && want !== this.labelKey && !this.swap && !this.grab) {
+      const pressing = this.readyTextures.get(want);
       const parked = Math.abs(this.swingAngle - rig.rest) < RAD(2);
-      if (tex && parked) this.swap = { t: 0, key: want, tex, applied: false };
+      if (pressing && parked) {
+        const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0).setY(0);
+        const toward = this.camera.position.clone().sub(this.controls.target).setY(0);
+        const dir = right.normalize().addScaledVector(toward.normalize(), 0.35).normalize();
+        this.swap = { t: 0, key: want, pressing, applied: false, dir };
+      }
     }
     if (this.swap) {
       this.swap.t = Math.min(1, this.swap.t + dt / SWAP_SECONDS);
       if (!this.swap.applied && this.swap.t >= 0.5) {
-        this.applyLabel(rig, this.swap.tex);
+        this.applyLabel(rig, this.swap.pressing);
         this.labelKey = this.swap.key;
         this.swap.applied = true;
       }
       if (this.swap.t >= 1) this.swap = null;
     }
+    // 0 on the platter, 1 at the far end of the slide (the swap's midpoint).
+    this.flight = this.swap ? 1 - Math.abs(1 - this.swap.t * 2) : 0;
 
     const onRecord = Boolean(want) && want === this.labelKey && !this.swap;
     const engaged = onRecord && playing;
-    // Parked: nothing loaded, a record change, or stopped at either end of the side.
-    const parked = !onRecord || (!playing && (progress < 0.002 || progress > 0.995));
-    const targetSwing = parked ? rig.rest : THREE.MathUtils.lerp(rig.leadIn, rig.leadOut, progress);
-    const needle = engaged; // needle down while playing; cue up while paused
+    // Parked: nothing loaded, a record change, put back on its rest, or stopped at either end of the side.
+    const parked = !onRecord || this.armRested || (!playing && (progress < 0.002 || progress > 0.995));
+    const targetSwing = this.grab
+      ? this.grab.target
+      : parked
+        ? rig.rest
+        : THREE.MathUtils.lerp(rig.leadIn, rig.leadOut, progress);
+    const needle = engaged && !this.grab; // needle down while playing; cue up while paused or in hand
 
     // Platter: quick spin-up, slower coast down.
     const targetOmega = engaged ? OMEGA : 0;
@@ -791,37 +1227,60 @@ export class VinylStage {
     if (Math.abs(this.omega) < 1e-3 && !targetOmega) this.omega = 0;
     for (const s of rig.spinners) s.rotation.y -= this.omega * dt; // clockwise from above
 
-    // Tonearm: lift, travel, lower. Small changes (playback progress) just slide.
-    const travel = Math.abs(targetSwing - this.swingAngle) > TRAVEL_EPS;
-    const liftTarget = travel ? 1 : parked || needle ? 0 : 1;
+    // Tonearm: lift, travel, lower. Small changes (playback progress) just slide; in hand, it follows.
+    const travel = !this.grab && Math.abs(targetSwing - this.swingAngle) > TRAVEL_EPS;
+    const liftTarget = this.grab || travel ? 1 : parked || needle ? 0 : 1;
     this.lift = approach(this.lift, liftTarget, dt * (liftTarget > this.lift ? 3.6 : 2.2));
     const goal = travel && this.lift < 0.9 ? this.swingAngle : targetSwing;
-    const k = 7; // critically damped spring
+    const k = this.grab ? 16 : 7; // critically damped spring
     this.swingVel += (k * k * (goal - this.swingAngle) - 2 * k * this.swingVel) * dt;
-    this.swingVel = THREE.MathUtils.clamp(this.swingVel, -RAD(55), RAD(55));
+    this.swingVel = THREE.MathUtils.clamp(this.swingVel, -RAD(this.grab ? 240 : 55), RAD(this.grab ? 240 : 55));
     this.swingAngle += this.swingVel * dt;
     if (!travel && Math.abs(goal - this.swingAngle) < 1e-5) this.swingVel = 0;
 
     this.motor = damp(this.motor, engaged ? 1 : 0, 10, dt);
+
+    // Needle on the record: for the sounds. Down once the stylus touches a turning record.
+    const inGroove = needle && !travel && this.lift === 0 && !parked && this.omega > OMEGA * 0.3;
+    if (inGroove !== this.inGroove) {
+      this.inGroove = inGroove;
+      this.events.onNeedle?.(inGroove ? "down" : "up");
+    }
+    const turn = this.platterTurn;
+    this.platterTurn += this.omega * dt;
+    const { durationMs } = this.playback;
+    const remaining = durationMs * (1 - progress);
+    if (
+      inGroove &&
+      durationMs > RUNOUT_MS * 2 &&
+      remaining < RUNOUT_MS &&
+      Math.floor(this.platterTurn / (Math.PI * 2)) !== Math.floor(turn / (Math.PI * 2))
+    ) {
+      this.events.onNeedle?.("runout");
+    }
   }
 
   private pose(rig: Rig) {
     rig.swing.rotation.y = this.swingAngle;
     rig.lift.rotation.z = rig.liftMax * smoothstep(this.lift);
 
-    // Label change: the old cover dims and dips, the new one comes up in its place.
-    const f = this.swap ? smoothstep(Math.abs(Math.cos(this.swap.t * Math.PI))) : 1;
-    const scale = 0.9 + 0.1 * f;
-    const tint = 0.08 + 0.92 * f;
-    for (const mesh of rig.labels) {
-      mesh.scale.set(scale, 1, scale);
-      for (const m of materials(mesh)) {
-        const tinted = m as THREE.Material & { color?: THREE.Color };
-        if (!tinted.color) continue;
-        tinted.userData.baseColor ??= tinted.color.clone();
-        tinted.color.copy(tinted.userData.baseColor as THREE.Color).multiplyScalar(tint);
-      }
-    }
+    // Record change: up off the spindle, then out to the side, fading at the far end.
+    // Reduced motion: it only fades.
+    const f = this.flight;
+    const { record } = rig;
+    if (f > 0 && this.swap) {
+      const rise = this.reducedMotion ? 0 : smoothstep(Math.min(1, f / 0.3));
+      const slide = this.reducedMotion ? 0 : smoothstep(Math.max(0, (f - 0.22) / 0.78));
+      const world = record.baseWorld
+        .clone()
+        .addScaledVector(this.swap.dir, slide * record.radius * 3)
+        .setY(record.baseWorld.y + rise * record.radius * 0.4);
+      const parent = record.carrier.parent!;
+      parent.updateWorldMatrix(true, false);
+      record.carrier.position.copy(parent.worldToLocal(world));
+    } else record.carrier.position.copy(record.base);
+    const opacity = 1 - smoothstep(THREE.MathUtils.clamp((f - 0.5) / 0.45, 0, 1));
+    for (const mesh of record.meshes) setOpacity(materials(mesh), opacity);
 
     const q = new THREE.Quaternion();
     for (const knob of rig.knobs) {

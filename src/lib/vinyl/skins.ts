@@ -42,6 +42,12 @@ export interface SkinConfig {
   label: { node: string } | { material: string };
   /** Meshes (by material name) hidden while a cover is on the label. */
   hideWithCover?: string[];
+  /**
+   * The record itself. `vinyl`: material names of its vinyl meshes (under a spinning node), which
+   * coloured and picture discs replace. `node`: a node holding the whole record, moved as it is when
+   * records are changed; without it the vinyl, label and `hideWithCover` meshes are grouped.
+   */
+  record: { vinyl: string[]; node?: string };
   arm: ArmConfig;
   knobs?: KnobConfig[];
   /** Nodes left out when framing the camera (open lids make the box too tall). */
@@ -59,6 +65,7 @@ export const SKINS: readonly SkinConfig[] = [
     bytes: 998_040,
     spin: ["Turntable_Disc"],
     label: { node: "Record_Label" },
+    record: { vinyl: ["M_Vinyl"] },
     arm: { node: "Tonearm", restDeg: 18, leadInDeg: 0, leadOutDeg: -24.03, liftDeg: 6 },
     knobs: [{ node: "Knob_Start", axis: "y", bind: "motor", fromDeg: 0, toDeg: -45 }],
     frameExclude: ["DustCover"],
@@ -71,6 +78,8 @@ export const SKINS: readonly SkinConfig[] = [
     bytes: 3_420_832,
     spin: ["Platter_Spin", "Record_Spin"],
     label: { node: "Record_Label" },
+    // Record_Spin is the record: its vinyl, a chrome centre ring and the label.
+    record: { vinyl: ["Vinyl_Game"], node: "Record_Spin" },
     arm: { node: "Tonearm", restDeg: 18, leadInDeg: -0.3, leadOutDeg: -24.5, liftDeg: 6 },
     knobs: [{ node: "Knob_Volume", axis: "z", bind: "volume", fromDeg: 135, toDeg: -135 }],
     frameExclude: ["Lid_Hinge"],
@@ -85,6 +94,7 @@ export const SKINS: readonly SkinConfig[] = [
     // Record and Record_Label are children of Platter, so they turn with it.
     spin: ["Platter"],
     label: { node: "Record_Label" },
+    record: { vinyl: ["Vinyl"], node: "Record" },
     // The file has the stylus mid-record: lead-in and lead-out put it at 146 mm and 60 mm
     // from the spindle (a 12" LP), and rest lays the arm tube over the rest post.
     arm: { node: "Tonearm", restDeg: 37, leadInDeg: 12.6, leadOutDeg: -10.8, liftDeg: 6 },
@@ -102,6 +112,7 @@ export const SKINS: readonly SkinConfig[] = [
     spin: ["Turntable_Disc"],
     label: { material: "VP_Label" },
     hideWithCover: ["VP_LabelMark"],
+    record: { vinyl: ["VP_Black"] },
     arm: { node: "Tonearm", restDeg: 28, leadInDeg: 12.6, leadOutDeg: -8, liftDeg: 5 },
   },
 ];

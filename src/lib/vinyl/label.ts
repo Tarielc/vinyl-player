@@ -1,5 +1,6 @@
 // Draws a record label (1024² canvas) from a track's cover art. The label mesh
-// maps the full square onto its circle, so the corners are cropped off.
+// maps the full square onto its circle, so the corners are cropped off. Also picks
+// the colour for a coloured pressing and draws picture discs.
 
 export interface LabelInfo {
   /** Stable id of the track (provider:id). */
@@ -14,6 +15,18 @@ const C = SIZE / 2;
 
 /** Muted card stock for labels drawn without artwork. */
 const PAPER = ["#e6dfcc", "#8c8a6c", "#8e98a3", "#a4875f", "#5d5f48", "#cfc6ad"];
+/** Classic coloured vinyl, for records whose cover gives no colour (none, or greyscale). */
+const VINYL = ["#7d1f2c", "#c4922a", "#1f6f78", "#34539c", "#2f6b3a", "#b9b4aa"];
+/** Picture discs: the cover across the whole record. */
+const PICTURE_SIZE = 1536;
+
+export interface PressedLabel {
+  label: HTMLCanvasElement;
+  /** CSS colour for a coloured pressing: the cover's main colour, or a classic one. */
+  colour: string;
+  /** Draws the cover across a whole record (a picture disc); null without artwork. */
+  drawPicture: (() => HTMLCanvasElement) | null;
+}
 
 function cssFont(variable: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
@@ -190,8 +203,96 @@ function drawFurniture(ctx: CanvasRenderingContext2D, info: LabelInfo, mono: str
   ctx.stroke();
 }
 
+/**
+ * The cover's main colour: the most common saturated hue, weighted toward mid tones.
+ * Null when the cover is mostly grey (or can't be read).
+ */
+function coverColour(art: Art): string | null {
+  const n = 24;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = n;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(art.img, art.sx, art.sy, art.side, art.side, 0, 0, n, n);
+  let data: Uint8ClampedArray;
+  try {
+    data = ctx.getImageData(0, 0, n, n).data;
+  } catch {
+    return null;
+  }
+  const bins = Array.from({ length: 12 }, () => ({ w: 0, r: 0, g: 0, b: 0 }));
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i] / 255;
+    const g = data[i + 1] / 255;
+    const b = data[i + 2] / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const d = max - min;
+    const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    if (sat < 0.25 || l < 0.1 || l > 0.93) continue;
+    let h = max === r ? (g - b) / d : max === g ? 2 + (b - r) / d : 4 + (r - g) / d;
+    h = (h / 6 + 1) % 1;
+    const w = sat * (1 - Math.abs(l - 0.5) * 1.3);
+    const bin = bins[Math.floor(h * 12) % 12];
+    bin.w += w;
+    bin.r += r * w;
+    bin.g += g * w;
+    bin.b += b * w;
+  }
+  const best = bins.reduce((a, b) => (b.w > a.w ? b : a));
+  if (best.w < n * n * 0.03) return null;
+  const c = (v: number) => Math.round((v / best.w) * 255);
+  return `rgb(${c(best.r)}, ${c(best.g)}, ${c(best.b)})`;
+}
+
+/** The cover across a whole 12" record, with a darker lead-in edge and the spindle hole. */
+function drawPictureDisc(art: Art): HTMLCanvasElement {
+  const size = PICTURE_SIZE;
+  const c = size / 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  ctx.fillStyle = "#0b0a09";
+  ctx.fillRect(0, 0, size, size);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(art.img, art.sx, art.sy, art.side, art.side, 0, 0, size, size);
+
+  // Clear vinyl at the edge (lead-in) and round the label area, as on a real picture disc.
+  ctx.fillStyle = "rgba(10,9,8,0.55)";
+  ctx.beginPath();
+  ctx.arc(c, c, c, 0, Math.PI * 2);
+  ctx.arc(c, c, c * 0.975, 0, Math.PI * 2, true);
+  ctx.fill("evenodd");
+  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  ctx.lineWidth = 2;
+  for (const r of [0.975, 0.32]) {
+    ctx.beginPath();
+    ctx.arc(c, c, c * r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // Spindle hole (7.2 mm on a 305 mm record).
+  ctx.fillStyle = "#0b0a09";
+  ctx.beginPath();
+  ctx.arc(c, c, c * 0.024, 0, Math.PI * 2);
+  ctx.fill();
+  return canvas;
+}
+
+/** Renders the label for `info`, with what a coloured or picture pressing needs. Never throws. */
+export async function pressLabel(info: LabelInfo): Promise<PressedLabel> {
+  const art = info.artworkUrl ? await loadArt(info.artworkUrl).catch(() => null) : null;
+  const label = await drawLabel(info, art);
+  return {
+    label,
+    colour: (art && coverColour(art)) ?? VINYL[hash(info.key) % VINYL.length],
+    drawPicture: art ? () => drawPictureDisc(art) : null,
+  };
+}
+
 /** Renders the label for `info` onto a fresh canvas. Never throws: falls back to a printed label. */
-export async function drawLabel(info: LabelInfo): Promise<HTMLCanvasElement> {
+async function drawLabel(info: LabelInfo, art: Art | null): Promise<HTMLCanvasElement> {
   const serif = cssFont("--font-instrument-serif", "Georgia, serif");
   const mono = cssFont("--font-geist-mono", "ui-monospace, monospace");
   await Promise.all([
@@ -204,7 +305,6 @@ export async function drawLabel(info: LabelInfo): Promise<HTMLCanvasElement> {
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
 
-  const art = info.artworkUrl ? await loadArt(info.artworkUrl).catch(() => null) : null;
   if (art) {
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(art.img, art.sx, art.sy, art.side, art.side, 0, 0, SIZE, SIZE);
