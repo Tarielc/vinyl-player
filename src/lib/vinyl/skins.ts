@@ -76,17 +76,6 @@ export const SKINS: readonly SkinConfig[] = [
     frameExclude: ["Lid_Hinge"],
   },
   {
-    id: "minimal",
-    name: "Minimal",
-    blurb: "Low-poly, no lid",
-    url: "/models/Vinyl2.glb",
-    bytes: 95_524,
-    spin: ["Turntable_Disc"],
-    label: { material: "VP_Label" },
-    hideWithCover: ["VP_LabelMark"],
-    arm: { node: "Tonearm", restDeg: 28, leadInDeg: 12.6, leadOutDeg: -8, liftDeg: 5 },
-  },
-  {
     id: "stave",
     name: "Stave",
     blurb: "Walnut cabinet with speakers, smoked lid",
@@ -103,6 +92,17 @@ export const SKINS: readonly SkinConfig[] = [
     frameExclude: ["Lid_Hinge"],
     // The lid is closed in the file; Lid_Open's last frame has it up.
     holdLastFrame: ["Lid_Open"],
+  },
+  {
+    id: "minimal",
+    name: "Minimal",
+    blurb: "Low-poly, no lid",
+    url: "/models/Vinyl2.glb",
+    bytes: 95_524,
+    spin: ["Turntable_Disc"],
+    label: { material: "VP_Label" },
+    hideWithCover: ["VP_LabelMark"],
+    arm: { node: "Tonearm", restDeg: 28, leadInDeg: 12.6, leadOutDeg: -8, liftDeg: 5 },
   },
 ];
 
