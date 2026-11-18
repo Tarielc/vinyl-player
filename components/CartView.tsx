@@ -13,7 +13,7 @@ import {
   useCart,
   type CartLine,
 } from "@/lib/shop/cart";
-import { driveLabel, formatPrice } from "@/lib/shop/catalog";
+import { driveLabel, formatPrice, turntableHref } from "@/lib/shop/catalog";
 import { ArrowRightIcon, MinusIcon, PlusIcon } from "./Icons";
 import { TurntableArt } from "./TurntableArt";
 
@@ -52,13 +52,23 @@ export function CartView() {
 function Line({ item, qty }: CartLine) {
   return (
     <li className={`group ${ROW}`}>
-      <div className="relative aspect-[4/3] self-start overflow-hidden rounded-[3px] bg-ink-2 ring-1 ring-paper/10">
+      <Link
+        href={turntableHref(item.id)}
+        prefetch
+        tabIndex={-1}
+        aria-hidden="true"
+        className="relative block aspect-[4/3] self-start overflow-hidden rounded-[3px] bg-ink-2 ring-1 ring-paper/10 transition hover:ring-paper/30"
+      >
         <TurntableArt art={item.art} className="absolute inset-0 size-full p-[8%]" />
-      </div>
+      </Link>
 
       <div className="flex min-w-0 flex-col">
         <div className="flex items-baseline justify-between gap-4">
-          <h3 className="font-serif text-[26px] leading-none sm:text-[32px]">{item.name}</h3>
+          <h3 className="font-serif text-[26px] leading-none sm:text-[32px]">
+            <Link href={turntableHref(item.id)} prefetch className="underline-offset-4 hover:underline">
+              {item.name}
+            </Link>
+          </h3>
           <p className="shrink-0 font-mono text-sm tabular-nums sm:text-base">{formatPrice(item.price * qty)}</p>
         </div>
         <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/45">

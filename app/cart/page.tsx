@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { CartSkeleton, CartView } from "@/components/CartView";
 import { ArrowLeftIcon } from "@/components/Icons";
+import { PILL, SiteHeader } from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Cart · Vinyl Player",
@@ -17,18 +18,12 @@ export default function CartPage() {
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[70svh] bg-[radial-gradient(55%_65%_at_18%_0%,rgb(201_140_78/0.16),transparent_72%)]"
       />
 
-      <header className="flex h-16 items-center justify-between gap-4 px-5 lg:h-20 lg:px-10">
-        <Link href="/" className="text-[13px] font-medium uppercase tracking-[0.34em]">
-          Vinyl <span className="text-paper/35">/</span> Player
-        </Link>
-        <Link
-          href="/#turntables"
-          className="inline-flex h-9 items-center gap-2 rounded-full border border-paper/20 px-3 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/80 backdrop-blur transition hover:border-paper/50 hover:text-paper sm:px-4"
-        >
+      <SiteHeader>
+        <Link href="/#turntables" className={PILL}>
           <ArrowLeftIcon size={14} />
           Keep shopping
         </Link>
-      </header>
+      </SiteHeader>
 
       <div className="mx-auto max-w-[1280px] px-5 pb-24 pt-10 lg:px-10 lg:pt-16">
         <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-paper/55">Cart · Prices in USD</p>

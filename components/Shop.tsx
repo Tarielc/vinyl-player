@@ -3,7 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { addToCart, cartCount, removeFromCart, useCart } from "@/lib/shop/cart";
-import { CATALOG, DRIVES, driveLabel, formatPrice, type Drive, type Turntable } from "@/lib/shop/catalog";
+import {
+  CATALOG,
+  catalogueNo,
+  DRIVES,
+  driveLabel,
+  formatPrice,
+  turntableHref,
+  type Drive,
+  type Turntable,
+} from "@/lib/shop/catalog";
 import type { SkinId } from "@/lib/vinyl/skins";
 import { TurntableArt } from "./TurntableArt";
 
@@ -11,14 +20,12 @@ type Filter = "All" | Drive;
 
 function Listing({
   item,
-  index,
   onDeck,
   inCart,
   onPreview,
   onToggleCart,
 }: {
   item: Turntable;
-  index: number;
   onDeck: boolean;
   inCart: boolean;
   onPreview: (skin: SkinId) => void;
@@ -27,23 +34,34 @@ function Listing({
   return (
     <li>
       <article className="group">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-[3px] bg-ink-2 ring-1 ring-paper/10">
+        {/* The title below is the keyboard / screen-reader link; this one is a bigger target for pointers. */}
+        <Link
+          href={turntableHref(item.id)}
+          prefetch
+          tabIndex={-1}
+          aria-hidden="true"
+          className="relative block aspect-[4/3] overflow-hidden rounded-[3px] bg-ink-2 ring-1 ring-paper/10 transition hover:ring-paper/30"
+        >
           <TurntableArt
             art={item.art}
             className="absolute inset-0 size-full p-[8%] transition-transform duration-500 ease-out group-hover:scale-[1.03]"
           />
           <span className="absolute left-3 top-3 font-mono text-[10px] uppercase tracking-[0.2em] text-paper/45">
-            No_{String(index + 1).padStart(2, "0")}
+            {catalogueNo(item)}
           </span>
           {item.skin && (
             <span className="absolute right-3 top-3 rounded-full border border-paper/25 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.2em] text-paper/75">
               {onDeck ? "● On the deck" : "3D"}
             </span>
           )}
-        </div>
+        </Link>
 
         <div className="mt-4 flex items-baseline justify-between gap-4">
-          <h3 className="font-serif text-[28px] leading-none">{item.name}</h3>
+          <h3 className="font-serif text-[28px] leading-none">
+            <Link href={turntableHref(item.id)} prefetch className="underline-offset-4 hover:underline">
+              {item.name}
+            </Link>
+          </h3>
           <p className="shrink-0 font-mono text-sm tabular-nums text-paper/90">{formatPrice(item.price)}</p>
         </div>
         <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/45">
@@ -148,7 +166,6 @@ export function Shop({
             <Listing
               key={item.id}
               item={item}
-              index={CATALOG.indexOf(item)}
               onDeck={item.skin === skin}
               inCart={Boolean(cart[item.id])}
               onPreview={onPreview}

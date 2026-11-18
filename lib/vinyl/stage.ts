@@ -39,9 +39,15 @@ export interface LoadState {
 
 export interface StageEvents {
   onLoadState?(state: LoadState): void;
-  /** The record (platter or label) was clicked without dragging. */
+  /** The record (platter or label) was clicked without dragging. Without it the record isn't clickable. */
   onRecordClick?(): void;
 }
+
+/**
+ * `hero`: on wide layouts the deck sits right of centre to leave room for the copy, and can dock left.
+ * `centered`: the deck fills its own box at any width (e.g. a product page).
+ */
+export type StageFraming = "hero" | "centered";
 
 interface Knob {
   obj: THREE.Object3D;
@@ -173,6 +179,7 @@ export class VinylStage {
   constructor(
     private readonly container: HTMLElement,
     private readonly events: StageEvents = {},
+    private readonly framing: StageFraming = "hero",
   ) {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -571,11 +578,16 @@ export class VinylStage {
     this.dirty = true;
   }
 
+  /** Hero framing on a wide screen, where the copy takes the left side. */
+  private isWideHero(width = this.container.clientWidth) {
+    return this.framing === "hero" && width >= 1024;
+  }
+
   /** Wide layouts keep the copy on the left, so the deck sits right of centre. */
   private applyViewOffset() {
     const w = Math.max(1, this.container.clientWidth);
     const h = Math.max(1, this.container.clientHeight);
-    const wide = w >= 1024;
+    const wide = this.isWideHero(w);
     const d = wide ? smoothstep(this.dock) : 0;
     const sx = wide ? THREE.MathUtils.lerp(HERO_SHIFT_X, DOCK_SHIFT_X, d) : 0;
     const sy = wide ? this.shiftY : 0;
@@ -589,12 +601,12 @@ export class VinylStage {
     const rig = this.rig;
     if (!rig) return;
     const { center, radius } = rig.frame;
-    const w = this.container.clientWidth;
+    const wide = this.isWideHero();
     const vFov = RAD(this.camera.fov);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
     // Leave room for the copy (wide) or for the panel below (narrow).
-    const fill = w >= 1024 ? 0.58 : 0.82;
-    const dist = radius / Math.sin(Math.min(vFov, hFov * fill) / 2) / (w >= 1024 ? 1.12 : 1.05);
+    const fill = wide ? 0.58 : 0.82;
+    const dist = radius / Math.sin(Math.min(vFov, hFov * fill) / 2) / (wide ? 1.12 : 1.05);
     this.homeTarget.set(center.x, center.y * 0.7, center.z);
     const dir = new THREE.Vector3().setFromSphericalCoords(1, RAD(61), RAD(30));
     this.homePosition.copy(this.homeTarget).addScaledVector(dir, dist);
@@ -676,7 +688,7 @@ export class VinylStage {
         pending = true;
         requestAnimationFrame(() => {
           pending = false;
-          canvas.style.cursor = hitsRecord(e) ? "pointer" : "grab";
+          canvas.style.cursor = this.events.onRecordClick && hitsRecord(e) ? "pointer" : "grab";
         });
       },
       { signal },

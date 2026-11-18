@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
-import type { LabelInfo, LoadState, VinylStage } from "@/lib/vinyl/stage";
+import type { LabelInfo, LoadState, StageFraming, VinylStage } from "@/lib/vinyl/stage";
 import type { SkinId } from "@/lib/vinyl/skins";
 
 export interface VinylCanvasHandle {
@@ -25,6 +25,7 @@ export function VinylCanvas({
   durationMs,
   volume,
   frameShift = 0,
+  framing = "hero",
   onRecordClick,
   onLoadState,
   className,
@@ -41,6 +42,9 @@ export function VinylCanvas({
   volume: number;
   /** Slide the deck down by this fraction of the height (wide layouts), to clear overlays. */
   frameShift?: number;
+  /** Read once, when the stage is created. */
+  framing?: StageFraming;
+  /** Makes the record clickable. Whether it is clickable is read once, when the stage is created. */
   onRecordClick?: () => void;
   onLoadState?: (state: LoadState) => void;
   className?: string;
@@ -55,16 +59,23 @@ export function VinylCanvas({
     callbacks.current = { onRecordClick, onLoadState };
   });
 
+  const initial = useRef({ framing, clickable: Boolean(onRecordClick) });
+
   useEffect(() => {
     let created: VinylStage | null = null;
     let cancelled = false;
     import("@/lib/vinyl/stage")
       .then(({ VinylStage }) => {
         if (cancelled || !host.current) return;
-        created = new VinylStage(host.current, {
-          onRecordClick: () => callbacks.current.onRecordClick?.(),
-          onLoadState: (s) => callbacks.current.onLoadState?.(s),
-        });
+        const { framing, clickable } = initial.current;
+        created = new VinylStage(
+          host.current,
+          {
+            onRecordClick: clickable ? () => callbacks.current.onRecordClick?.() : undefined,
+            onLoadState: (s) => callbacks.current.onLoadState?.(s),
+          },
+          framing,
+        );
         created.setDock(dock.current);
         setStage(created);
       })

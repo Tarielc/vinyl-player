@@ -119,3 +119,10 @@ export const formatPrice = (usd: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(usd);
 
 export const driveLabel = (drive: Drive) => (drive === "Portable" ? drive : `${drive} drive`);
+
+export const getTurntable = (id: string) => CATALOG.find((t) => t.id === id);
+
+export const turntableHref = (id: string) => `/turntables/${encodeURIComponent(id)}`;
+
+/** "No_01" etc., the catalogue number shown on listings. */
+export const catalogueNo = (item: Turntable) => `No_${String(CATALOG.indexOf(item) + 1).padStart(2, "0")}`;
