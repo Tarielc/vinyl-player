@@ -395,13 +395,30 @@ export class VinylStage {
           const total = e.total || cfg.bytes;
           this.events.onLoadState?.({ skin: id, progress: Math.min(0.99, e.loaded / total), ready: false });
         })
-        .then((gltf) => this.buildRig(cfg, gltf.scene));
+        .then((gltf) => this.buildRig(cfg, gltf.scene, gltf.animations));
       this.rigs.set(id, p);
     }
     return p;
   }
 
-  private buildRig(cfg: SkinConfig, root: THREE.Object3D): Rig {
+  private buildRig(cfg: SkinConfig, root: THREE.Object3D, clips: THREE.AnimationClip[]): Rig {
+    // Clips aren't played; a few are only there for their end pose (e.g. a lid that opens).
+    if (cfg.holdLastFrame?.length) {
+      const held = cfg.holdLastFrame.map((name) => {
+        const clip = THREE.AnimationClip.findByName(clips, name);
+        if (!clip) throw new Error(`${cfg.url} has no animation named "${name}".`);
+        return clip;
+      });
+      const mixer = new THREE.AnimationMixer(root);
+      for (const clip of held) {
+        const action = mixer.clipAction(clip);
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+        action.play();
+      }
+      mixer.setTime(Math.max(...held.map((c) => c.duration)));
+    }
+
     root.updateMatrixWorld(true);
     const find = (name: string) => {
       const o = root.getObjectByName(name);

@@ -89,9 +89,11 @@ export const CATALOG: readonly Turntable[] = [
     maker: "Northfield",
     drive: "Portable",
     price: 199,
-    blurb: "A suitcase turntable with a built-in speaker and a battery for the park.",
-    specs: ["33⅓ / 45 rpm", "Speaker", "8 h battery"],
-    art: { plinth: "#5d5f48", platter: "#262420", label: "#e7b464", arm: "#d8d2c2", shape: "case" },
+    blurb: "A walnut cabinet with built-in speakers, a smoked lid and a battery, so it plays anywhere.",
+    specs: ["33⅓ / 45 rpm", "Built-in speakers", "8 h battery"],
+    skin: "stave",
+    // Colours of the Stave model.
+    art: { plinth: "#8a4a28", platter: "#2b2b2c", label: "#e2c9a0", arm: "#262628", shape: "square" },
   },
   {
     id: "carbon-reference",

@@ -361,7 +361,8 @@ function DeckSwitcher({
             aria-checked={active}
             title={s.blurb}
             onClick={() => onChange(s.id)}
-            className={`rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] transition ${
+            // Tighter on phones, so four decks fit beside the view button.
+            className={`rounded-full px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] transition sm:px-3 ${
               active ? "bg-paper text-ink" : "text-paper/65 hover:text-paper"
             }`}
           >

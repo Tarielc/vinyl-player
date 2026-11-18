@@ -2,7 +2,7 @@
 // (exported from E:\BLENDER) and names its moving parts differently, so this
 // maps them onto one rig: spinning parts, the label, the tonearm and knobs.
 
-export type SkinId = "walnut" | "console" | "minimal";
+export type SkinId = "walnut" | "console" | "minimal" | "stave";
 
 export interface ArmConfig {
   /** The tonearm node; its origin must sit on the pivot bearing. */
@@ -46,6 +46,8 @@ export interface SkinConfig {
   knobs?: KnobConfig[];
   /** Nodes left out when framing the camera (open lids make the box too tall). */
   frameExclude?: string[];
+  /** Animation clips applied at their last frame on load, e.g. one that opens the lid. Clips never play. */
+  holdLastFrame?: string[];
 }
 
 export const SKINS: readonly SkinConfig[] = [
@@ -83,6 +85,24 @@ export const SKINS: readonly SkinConfig[] = [
     label: { material: "VP_Label" },
     hideWithCover: ["VP_LabelMark"],
     arm: { node: "Tonearm", restDeg: 28, leadInDeg: 12.6, leadOutDeg: -8, liftDeg: 5 },
+  },
+  {
+    id: "stave",
+    name: "Stave",
+    blurb: "Walnut cabinet with speakers, smoked lid",
+    // E:\BLENDER\export\Crosley_Stave.glb
+    url: "/models/Crosley_Stave.glb",
+    bytes: 3_507_288,
+    // Record and Record_Label are children of Platter, so they turn with it.
+    spin: ["Platter"],
+    label: { node: "Record_Label" },
+    // The file has the stylus mid-record: lead-in and lead-out put it at 146 mm and 60 mm
+    // from the spindle (a 12" LP), and rest lays the arm tube over the rest post.
+    arm: { node: "Tonearm", restDeg: 37, leadInDeg: 12.6, leadOutDeg: -10.8, liftDeg: 6 },
+    knobs: [{ node: "Knob_Volume", axis: "y", bind: "volume", fromDeg: 135, toDeg: -135 }],
+    frameExclude: ["Lid_Hinge"],
+    // The lid is closed in the file; Lid_Open's last frame has it up.
+    holdLastFrame: ["Lid_Open"],
   },
 ];
 
