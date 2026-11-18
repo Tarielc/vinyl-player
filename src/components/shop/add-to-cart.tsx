@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { addToCart, removeFromCart, useCart } from "@/lib/shop/cart";
-import { ArrowRightIcon } from "./Icons";
+import { ArrowRightIcon } from "@/components/icons";
 
 /** Product-page cart control: add it, or go to the cart once it's in. */
 export function AddToCart({ id, name }: { id: string; name: string }) {

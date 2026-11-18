@@ -14,8 +14,8 @@ import {
   type CartLine,
 } from "@/lib/shop/cart";
 import { driveLabel, formatPrice, turntableHref } from "@/lib/shop/catalog";
-import { ArrowRightIcon, MinusIcon, PlusIcon } from "./Icons";
-import { TurntableArt } from "./TurntableArt";
+import { ArrowRightIcon, MinusIcon, PlusIcon } from "@/components/icons";
+import { TurntableArt } from "./turntable-art";
 
 const GRID = "mt-12 grid gap-12 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-16";
 const ROW = "grid grid-cols-[96px_minmax(0,1fr)] gap-x-5 py-6 sm:grid-cols-[168px_minmax(0,1fr)] sm:gap-x-8";

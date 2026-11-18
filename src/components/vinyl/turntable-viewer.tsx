@@ -3,8 +3,8 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { LoadState } from "@/lib/vinyl/stage";
 import type { SkinId } from "@/lib/vinyl/skins";
-import { MinusIcon, PlusIcon, ResetViewIcon } from "./Icons";
-import { VinylCanvas, type VinylCanvasHandle } from "./VinylCanvas";
+import { MinusIcon, PlusIcon, ResetViewIcon } from "@/components/icons";
+import { VinylCanvas, type VinylCanvasHandle } from "./vinyl-canvas";
 
 /** A turntable's 3D model on its own: orbit, zoom, reset. No record playing. */
 export function TurntableViewer({ skin, className = "" }: { skin: SkinId; className?: string }) {

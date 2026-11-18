@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { cartCount, useCart } from "@/lib/shop/cart";
-import { BagIcon } from "./Icons";
+import { BagIcon } from "@/components/icons";
 
 /** Header link to /cart with the number of turntables in it. */
 export function CartLink({ className = "" }: { className?: string }) {

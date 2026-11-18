@@ -1,9 +1,9 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import type { PlayerControls } from "@/lib/players/usePlayer";
-import { ArrowUpRightIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "./Icons";
-import { formatTime } from "./TrackList";
+import type { PlayerControls } from "@/lib/players/use-player";
+import { ArrowUpRightIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "@/components/icons";
+import { formatTime } from "./track-list";
 
 const PROVIDER_NAME = { spotify: "Spotify", youtube: "YouTube" } as const;
 

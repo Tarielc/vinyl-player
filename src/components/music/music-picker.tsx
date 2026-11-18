@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/music/client";
 import type { Playlist, ProviderId, ProviderStatus, Track } from "@/lib/music/types";
-import { CloseIcon } from "./Icons";
-import { TrackList } from "./TrackList";
+import { CloseIcon } from "@/components/icons";
+import { TrackList } from "./track-list";
 
 const chip =
   "rounded-full border border-ink/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] transition hover:border-ink hover:bg-ink hover:text-paper";

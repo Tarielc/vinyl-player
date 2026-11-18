@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { CartSkeleton, CartView } from "@/components/CartView";
-import { ArrowLeftIcon } from "@/components/Icons";
-import { PILL, SiteHeader } from "@/components/SiteHeader";
+import { CartSkeleton, CartView } from "@/components/shop/cart-view";
+import { ArrowLeftIcon } from "@/components/icons";
+import { PILL, SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
   title: "Cart · Vinyl Player",

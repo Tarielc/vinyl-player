@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { ProviderId, Track } from "@/lib/music/types";
-import { createSpotifyAdapter } from "./spotifyPlayer";
-import { createYouTubeAdapter } from "./youtubePlayer";
+import { createSpotifyAdapter } from "./spotify-player";
+import { createYouTubeAdapter } from "./youtube-player";
 import type { PlaybackSnapshot, PlayerAdapter } from "./types";
 
 export type PlayerStatus = "idle" | "loading" | "ready";

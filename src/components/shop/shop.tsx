@@ -14,7 +14,7 @@ import {
   type Turntable,
 } from "@/lib/shop/catalog";
 import type { SkinId } from "@/lib/vinyl/skins";
-import { TurntableArt } from "./TurntableArt";
+import { TurntableArt } from "./turntable-art";
 
 type Filter = "All" | Drive;
 

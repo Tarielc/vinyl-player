@@ -2,18 +2,18 @@
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePlayer } from "@/lib/players/usePlayer";
+import { usePlayer } from "@/lib/players/use-player";
 import { PROVIDER_IDS, type ProviderId, type Track } from "@/lib/music/types";
 import { DEFAULT_SKIN, SKINS, type SkinId } from "@/lib/vinyl/skins";
 import type { LabelInfo, LoadState } from "@/lib/vinyl/stage";
-import { CartLink } from "./CartLink";
-import { CoverRail } from "./CoverRail";
-import { DockedPlayer } from "./DockedPlayer";
-import { ArrowRightIcon, CloseIcon, MinusIcon, PlusIcon, ResetViewIcon, SearchIcon } from "./Icons";
-import { MusicPicker } from "./MusicPicker";
-import { NowPlaying } from "./NowPlaying";
-import { Shop } from "./Shop";
-import { VinylCanvas, type VinylCanvasHandle } from "./VinylCanvas";
+import { ArrowRightIcon, CloseIcon, MinusIcon, PlusIcon, ResetViewIcon, SearchIcon } from "@/components/icons";
+import { CartLink } from "@/components/shop/cart-link";
+import { Shop } from "@/components/shop/shop";
+import { VinylCanvas, type VinylCanvasHandle } from "@/components/vinyl/vinyl-canvas";
+import { CoverRail } from "./cover-rail";
+import { DockedPlayer } from "./docked-player";
+import { MusicPicker } from "./music-picker";
+import { NowPlaying } from "./now-playing";
 
 type SearchParams = PageProps<"/">["searchParams"];
 

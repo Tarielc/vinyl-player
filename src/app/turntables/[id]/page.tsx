@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { AddToCart } from "@/components/AddToCart";
-import { CartLink } from "@/components/CartLink";
-import { ArrowLeftIcon, ArrowRightIcon } from "@/components/Icons";
-import { PILL, SiteHeader } from "@/components/SiteHeader";
-import { TurntableArt } from "@/components/TurntableArt";
-import { TurntableViewer } from "@/components/TurntableViewer";
+import { AddToCart } from "@/components/shop/add-to-cart";
+import { CartLink } from "@/components/shop/cart-link";
+import { ArrowLeftIcon, ArrowRightIcon } from "@/components/icons";
+import { PILL, SiteHeader } from "@/components/site-header";
+import { TurntableArt } from "@/components/shop/turntable-art";
+import { TurntableViewer } from "@/components/vinyl/turntable-viewer";
 import {
   CATALOG,
   catalogueNo,

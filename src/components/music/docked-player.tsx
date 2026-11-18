@@ -1,7 +1,7 @@
 "use client";
 
-import type { PlayerControls } from "@/lib/players/usePlayer";
-import { PauseIcon, PlayIcon } from "./Icons";
+import type { PlayerControls } from "@/lib/players/use-player";
+import { PauseIcon, PlayIcon } from "@/components/icons";
 
 /** Phones: a small spinning record with its arm, standing in for the 3D deck that scrolled away. */
 function MiniDeck({ artworkUrl, playing }: { artworkUrl?: string; playing: boolean }) {

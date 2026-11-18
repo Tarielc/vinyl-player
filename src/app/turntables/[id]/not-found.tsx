@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowRightIcon } from "@/components/Icons";
-import { SiteHeader } from "@/components/SiteHeader";
+import { ArrowRightIcon } from "@/components/icons";
+import { SiteHeader } from "@/components/site-header";
 
 export default function TurntableNotFound() {
   return (

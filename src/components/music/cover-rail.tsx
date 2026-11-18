@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Track } from "@/lib/music/types";
-import { formatTime } from "./TrackList";
+import { formatTime } from "./track-list";
 
 /** Covers shown at once; long lists show a window starting just before the current track. */
 const WINDOW = 8;

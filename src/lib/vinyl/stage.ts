@@ -1,6 +1,6 @@
 // Three.js scene for the hero: loads a turntable .glb, puts the current track's
 // cover on the record label and animates platter, tonearm and knobs from the
-// playback state. Framework-free; components/VinylCanvas.tsx drives it.
+// playback state. Framework-free; components/vinyl/vinyl-canvas.tsx drives it.
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
