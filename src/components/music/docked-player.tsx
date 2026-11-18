@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import type { PlayerControls } from "@/lib/players/use-player";
 import { PauseIcon, PlayIcon } from "@/components/icons";
 
-/** Phones: a small spinning record with its arm, standing in for the 3D deck that scrolled away. */
-function MiniDeck({ artworkUrl, playing }: { artworkUrl?: string; playing: boolean }) {
+/** A small spinning record with its arm, standing in for the 3D deck when it's out of sight. */
+function MiniDeck({ artworkUrl, playing, className = "" }: { artworkUrl?: string; playing: boolean; className?: string }) {
   return (
-    <span className="relative size-12 shrink-0 lg:hidden" aria-hidden="true">
+    <span className={`relative size-12 shrink-0 ${className}`} aria-hidden="true">
       <span
         className={`absolute inset-0 rounded-full bg-[repeating-radial-gradient(circle,#141312_0_2px,#1f1d1b_2px_3px)] ring-1 ring-paper/15 motion-safe:animate-[spin_1.8s_linear_infinite] ${
           playing ? "" : "[animation-play-state:paused]"
@@ -33,20 +34,35 @@ function MiniDeck({ artworkUrl, playing }: { artworkUrl?: string; playing: boole
   );
 }
 
-/** Compact now-playing bar shown once the hero (and its transport) has scrolled away. */
+/**
+ * Compact now-playing bar: on the home page once the hero (and its transport) has scrolled
+ * away, on every other page whenever something is loaded. `onBackToDeck` is given on the
+ * home page; elsewhere the bar links back to it.
+ */
 export function DockedPlayer({
   player,
   visible,
-  onBackToTop,
+  onBackToDeck,
 }: {
   player: PlayerControls;
   visible: boolean;
-  onBackToTop: () => void;
+  onBackToDeck?: () => void;
 }) {
   const { current, playing, status, positionMs, durationMs } = player;
   if (!current) return null;
   const duration = durationMs || current.durationMs || 0;
   const pct = duration ? Math.min(100, (positionMs / duration) * 100) : 0;
+  const info = (
+    <>
+      <span className="block font-mono text-[9px] uppercase tracking-[0.24em] text-paper/45">
+        {playing ? "Now spinning" : "Paused"}
+      </span>
+      <span className="block truncate text-[13px] text-paper/90">
+        {current.title}
+        <span className="text-paper/45"> — {current.artists.join(", ")}</span>
+      </span>
+    </>
+  );
 
   return (
     <div
@@ -56,7 +72,8 @@ export function DockedPlayer({
       }`}
     >
       <div className="relative flex items-center gap-3 overflow-hidden rounded-full border border-paper/15 bg-ink/85 py-2 pl-2 pr-4 backdrop-blur-md">
-        <MiniDeck artworkUrl={current.artworkUrl} playing={playing} />
+        {/* Wide screens on the home page still show the 3D deck on the left. */}
+        <MiniDeck artworkUrl={current.artworkUrl} playing={playing} className={onBackToDeck ? "lg:hidden" : ""} />
         <button
           type="button"
           onClick={player.toggle}
@@ -66,15 +83,15 @@ export function DockedPlayer({
         >
           {playing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
         </button>
-        <button type="button" onClick={onBackToTop} className="min-w-0 flex-1 text-left" title="Back to the deck">
-          <span className="block font-mono text-[9px] uppercase tracking-[0.24em] text-paper/45">
-            {playing ? "Now spinning" : "Paused"}
-          </span>
-          <span className="block truncate text-[13px] text-paper/90">
-            {current.title}
-            <span className="text-paper/45"> — {current.artists.join(", ")}</span>
-          </span>
-        </button>
+        {onBackToDeck ? (
+          <button type="button" onClick={onBackToDeck} className="min-w-0 flex-1 text-left" title="Back to the deck">
+            {info}
+          </button>
+        ) : (
+          <Link href="/" className="min-w-0 flex-1 text-left" title="Back to the deck">
+            {info}
+          </Link>
+        )}
         <span className="absolute inset-x-5 bottom-0 h-px bg-paper/10">
           <span className="block h-px bg-paper/60" style={{ width: `${pct}%` }} />
         </span>

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { PlayerProvider } from "@/components/music/player-provider";
 import "./globals.css";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -20,7 +21,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // data-scroll-behavior: Next turns off the smooth scrolling in globals.css during route changes.
     <html lang="en" data-scroll-behavior="smooth" className={`${sans.variable} ${mono.variable} ${serif.variable} antialiased`}>
-      <body className="min-h-svh bg-ink font-sans text-paper">{children}</body>
+      <body className="min-h-svh bg-ink font-sans text-paper">
+        {/* Owns playback, so music keeps going from page to page. */}
+        <PlayerProvider>{children}</PlayerProvider>
+      </body>
     </html>
   );
 }

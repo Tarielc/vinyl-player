@@ -2,7 +2,6 @@
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePlayer } from "@/lib/players/use-player";
 import { PROVIDER_IDS, type ProviderId, type Track } from "@/lib/music/types";
 import { DEFAULT_SKIN, SKINS, type SkinId } from "@/lib/vinyl/skins";
 import type { LabelInfo, LoadState } from "@/lib/vinyl/stage";
@@ -11,9 +10,9 @@ import { CartLink } from "@/components/shop/cart-link";
 import { Shop } from "@/components/shop/shop";
 import { VinylCanvas, type VinylCanvasHandle } from "@/components/vinyl/vinyl-canvas";
 import { CoverRail } from "./cover-rail";
-import { DockedPlayer } from "./docked-player";
 import { MusicPicker } from "./music-picker";
 import { NowPlaying } from "./now-playing";
+import { usePlayerControls, usePlayerStage } from "./player-provider";
 
 type SearchParams = PageProps<"/">["searchParams"];
 
@@ -41,11 +40,12 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
   const [skin, setSkin] = useState<SkinId>(DEFAULT_SKIN);
   const [load, setLoad] = useState<LoadState | null>(null);
   const [docked, setDocked] = useState(false);
-  const youtubeContainer = useRef<HTMLDivElement>(null);
+  const youtubeSlot = useRef<HTMLDivElement>(null);
   const view = useRef<VinylCanvasHandle>(null);
   const page = useRef<HTMLElement>(null);
   const hero = useRef<HTMLDivElement>(null);
-  const player = usePlayer(youtubeContainer);
+  // Owned by the root layout, so it keeps playing on other pages.
+  const player = usePlayerControls();
   const { current, queue, index, hasNext, toggle } = player;
 
   const openPicker = useCallback(() => setPicker((p) => ({ ...p, open: true })), []);
@@ -108,6 +108,7 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
   }, []);
 
   const backToTop = useCallback(() => window.scrollTo({ top: 0, behavior: "smooth" }), []);
+  usePlayerStage(youtubeSlot, docked, backToTop);
 
   // A listing put on the deck: phones scroll back up to where the deck is.
   const previewSkin = useCallback(
@@ -236,7 +237,8 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
           {current ? <NowPlaying player={player} onChangeRecord={() => openPicker()} /> : <Intro onStart={() => openPicker()} />}
         </section>
 
-        {/* YouTube's terms require its player to stay visible, so it gets a frame of its own. */}
+        {/* YouTube's terms require its player to stay visible, so it gets a frame of its own. The
+            player lives in the root layout (so it survives navigation) and is laid over this slot. */}
         <figure
           className={
             youtube
@@ -244,10 +246,7 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
               : "hidden"
           }
         >
-          <div
-            ref={youtubeContainer}
-            className="overflow-hidden rounded-[2px] bg-black ring-1 ring-paper/15 [&_iframe]:block [&_iframe]:h-[200px] [&_iframe]:w-full lg:[&_iframe]:w-[356px]"
-          />
+          <div ref={youtubeSlot} className="h-[200px] w-full lg:w-[356px] lg:shrink-0" />
           <figcaption className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/45 lg:mt-0 lg:rotate-180 lg:[writing-mode:vertical-rl]">
             Picture · YouTube
           </figcaption>
@@ -268,8 +267,6 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
         onPreview={previewSkin}
         className="relative z-10 px-5 py-24 lg:pointer-events-none lg:grid lg:grid-cols-[minmax(0,44fr)_minmax(0,56fr)] lg:gap-16 lg:px-10 lg:py-32"
       />
-
-      <DockedPlayer player={player} visible={docked} onBackToTop={backToTop} />
 
       <MusicPicker
         key={picker.key}
