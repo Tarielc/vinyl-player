@@ -92,7 +92,7 @@ export const SKINS: readonly SkinConfig[] = [
     blurb: "Walnut cabinet with speakers, smoked lid",
     // E:\BLENDER\export\Crosley_Stave.glb
     url: "/models/Crosley_Stave.glb",
-    bytes: 3_507_288,
+    bytes: 3_571_780,
     // Record and Record_Label are children of Platter, so they turn with it.
     spin: ["Platter"],
     label: { node: "Record_Label" },
