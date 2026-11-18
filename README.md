@@ -1,6 +1,6 @@
 # Vinyl Player
 
-A Next.js app with a "Choose music" window that searches and plays music from **Spotify** and **YouTube**, including each user's own playlists and liked tracks.
+A Next.js app that plays music from **Spotify** and **YouTube** on a 3D turntable. A "Choose music" window searches both, including each user's own playlists and liked tracks; the cover goes on the record label, the platter spins and the arm drops. Below the deck is a small (placeholder) turntable shop with product pages and a cart.
 
 ## Setup
 
@@ -9,7 +9,9 @@ A Next.js app with a "Choose music" window that searches and plays music from **
 3. **YouTube** ([Google Cloud console](https://console.cloud.google.com/apis/credentials)): enable *YouTube Data API v3* and create an API key for search. For library access, also create an OAuth client (type *Web application*) with the redirect URI `http://127.0.0.1:3000/api/music/youtube/callback`, and add yourself as a test user on the OAuth consent screen.
 4. `npm run dev`, then open **http://127.0.0.1:3000**. Use `127.0.0.1`, not `localhost`: Spotify rejects `localhost` redirect URIs, and the session cookies are tied to the host.
 
-A provider without credentials shows as unavailable in the picker.
+A provider without credentials shows as unavailable in the picker. Set the optional `YOUTUBE_REGION` (a 2-letter country code) to hide YouTube results that are blocked in that region.
+
+Other scripts: `npm run build`, `npm start`, `npm run lint`.
 
 ## Requirements and limits
 
@@ -35,6 +37,16 @@ All routes live under `/api/music`. Errors are returned as `{ error, code }`.
 
 Provider tokens are stored in AES-256-GCM-encrypted, httpOnly cookies (`SESSION_SECRET`). No database is needed.
 
+## Pages
+
+| Route | |
+|---|---|
+| `/` | The deck, the music picker and the turntable listings |
+| `/turntables/[id]` | One listing, prerendered for each catalogue entry. Shows the deck in 3D when the listing has a model, otherwise its drawing |
+| `/cart` | The cart, saved in `localStorage` and kept in sync across tabs |
+
+Playback keeps going from page to page. The player lives in a `PlayerProvider` in the root layout rather than in the home page, because with `cacheComponents` Next hides the page on navigation and runs its effect cleanups, which would destroy the Spotify and YouTube players. The YouTube frame never moves in the DOM (moving an iframe reloads it): it is laid over a slot in the home hero, or floats in a corner on other pages, where the now-playing bar links back to the deck.
+
 ## The 3D deck
 
 The home page is a hero built around a Three.js turntable (`src/lib/vinyl/`, mounted by `src/components/vinyl/vinyl-canvas.tsx`). Drag to orbit, pinch (or Ctrl+scroll) to zoom, and click the record to play or pause (Space works too).
@@ -43,17 +55,18 @@ When a track loads, its cover is drawn onto the record label (with the title run
 
 Scrolling past the hero: on wide screens the deck slides into the left column and keeps spinning (and tracking) there while the turntable listings scroll on the right. On phones it scrolls away with the hero and a small spinning record stays in the now-playing bar. The plain mouse wheel scrolls the page; pinch (or Ctrl+wheel) zooms the deck.
 
-The listings are placeholder data in `src/lib/shop/catalog.ts`. The three that have a 3D model can be put on the deck with "Try it on the deck".
+The listings are placeholder data in `src/lib/shop/catalog.ts`. The four that have a 3D model can be put on the deck with "Try it on the deck".
 
-Models live in `public/models/` (copied from `E:\BLENDER`). `src/lib/vinyl/skins.ts` maps each file's node names onto the rig:
+Models live in `public/models/`. `src/lib/vinyl/skins.ts` maps each file's node names onto the rig:
 
 | Deck | File | Notes |
 |---|---|---|
 | Walnut (default) | `Vinyl3.glb` | Arm angles from the model's glTF extras |
 | Console | `Vinyl1.glb` | Volume knob follows the volume |
+| Stave | `Crosley_Stave.glb` | Lid opened by holding the `Lid_Open` clip's last frame; volume knob follows the volume |
 | Minimal | `Vinyl2.glb` | Label is a material inside the disc mesh |
 
-To add a deck, export a .glb whose tonearm origin sits on its pivot, copy it to `public/models/`, and add an entry with its spinning nodes, label and arm angles (degrees about the pivot, measured from the arm's pose in the file).
+To add a deck, export a .glb whose tonearm origin sits on its pivot, copy it to `public/models/`, and add an entry with its spinning nodes, label and arm angles (degrees about the pivot, measured from the arm's pose in the file). To sell it, set `skin` on a listing in `catalog.ts`.
 
 ## Code layout
 
@@ -65,13 +78,13 @@ src/
   components/
     icons.tsx          shared SVG icons
     site-header.tsx    header for the pages other than home
-    music/             the home hero and the player UI
+    music/             the player provider, the home hero and the player UI
     shop/              listings, cart and turntable art
     vinyl/             the 3D canvas and the product-page viewer
   lib/
     music/             server-side music providers and sessions
     players/           browser playback adapters
-    shop/              catalogue and saved cart
+    shop/              catalogue and the localStorage cart
     vinyl/             the Three.js stage
   types/               ambient typings for the Spotify and YouTube SDKs
 ```
@@ -79,7 +92,7 @@ src/
 - `src/lib/music/`: server providers (`spotify.ts`, `youtube.ts`) behind the `MusicProvider` interface (`provider.ts`), plus the registry, the session cookies, and the shared `types.ts`.
 - `src/lib/players/`: browser playback adapters (Spotify SDK, YouTube IFrame) behind `PlayerAdapter`, and the `usePlayer` hook (`use-player.ts`).
 - `src/lib/vinyl/`: the Three.js stage (`stage.ts`), label drawing (`label.ts`) and the deck configs (`skins.ts`).
-- `src/components/music/`: `MusicApp` (the hero), `NowPlaying` (credits and transport), `CoverRail` (the queue as a row of covers), `DockedPlayer` (the now-playing bar after the hero), `MusicPicker` (the modal), `TrackList`.
+- `src/components/music/`: `PlayerProvider` (owns playback and the YouTube frame; mounted in the root layout), `MusicApp` (the hero), `NowPlaying` (credits and transport), `CoverRail` (the queue as a row of covers), `DockedPlayer` (the now-playing bar after the hero and on other pages), `MusicPicker` (the modal), `TrackList`.
 - `src/components/shop/`: `Shop` (turntables for sale), `CartView`, `CartLink`, `AddToCart`, `TurntableArt`.
 - `src/components/vinyl/`: `VinylCanvas` (mounts the stage) and `TurntableViewer` (the deck on a product page).
 
