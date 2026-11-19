@@ -173,6 +173,10 @@ export const SKINS: readonly SkinConfig[] = [
   },
 ];
 
+/** The decks in the hero's switcher, best-selling first (placeholder ranking). The rest are reached from
+ *  their listings ("Try it on the deck"); while one of those is on show, the switcher adds it at the end. */
+export const FEATURED_SKINS: readonly SkinId[] = ["console", "walnut", "studio"];
+
 export const DEFAULT_SKIN: SkinId = "walnut";
 
 export function getSkin(id: SkinId): SkinConfig {

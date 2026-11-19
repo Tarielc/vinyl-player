@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/music/client";
 import { playsFor } from "@/lib/music/share";
 import { PROVIDER_IDS, PROVIDER_NAMES, type ProviderId, type ProviderStatus, type Track } from "@/lib/music/types";
 import { useRecordPrefs } from "@/lib/vinyl/prefs";
-import { DEFAULT_SKIN, SKINS, type SkinId } from "@/lib/vinyl/skins";
+import { DEFAULT_SKIN, FEATURED_SKINS, SKINS, getSkin, type SkinId } from "@/lib/vinyl/skins";
 import type { LabelInfo, LoadState } from "@/lib/vinyl/stage";
 import {
   ArrowRightIcon,
@@ -673,6 +673,9 @@ function DeckSwitcher({
     box.scrollTo({ left, behavior: smooth ? "smooth" : "auto" });
   }, [skin]);
 
+  // The best sellers, plus the deck on show if it isn't one of them (picked from its listing).
+  const shown = (FEATURED_SKINS.includes(skin) ? FEATURED_SKINS : [...FEATURED_SKINS, skin]).map(getSkin);
+
   return (
     <div
       role="radiogroup"
@@ -687,7 +690,7 @@ function DeckSwitcher({
         className="relative flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={edgeFade(more.left, more.right)}
       >
-        {SKINS.map((s) => {
+        {shown.map((s) => {
           const active = s.id === skin;
           return (
             <button
