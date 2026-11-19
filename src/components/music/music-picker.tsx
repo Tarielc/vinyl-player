@@ -165,7 +165,7 @@ export function MusicPicker({
           })}
         </nav>
 
-        <div className="flex-1 overflow-y-auto bg-paper px-6 py-4">
+        <div className="scroll-paper flex-1 overflow-y-auto bg-paper px-6 py-4">
           {providersError && <p className="text-sm text-red-700">{providersError}</p>}
           {!providers && !providersError && <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink/50">Loading…</p>}
 
