@@ -5,6 +5,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { drawGrooveMaps } from "./grooves";
 import { pressLabel, type LabelInfo } from "./label";
 import { getSkin, type KnobConfig, type SkinConfig, type SkinId } from "./skins";
 
@@ -241,6 +242,8 @@ export class VinylStage {
   /** Off-screen canvases (phones, scrolled past the hero) keep animating but skip drawing. */
   private visible = true;
   private readonly key: THREE.SpotLight;
+  /** Groove maps for coloured and picture pressings, drawn the first time one is pressed. */
+  private grooveTextures: Record<"normal" | "roughness" | "anisotropy" | "tint", THREE.Texture> | null = null;
   private readonly rim: THREE.DirectionalLight;
   private readonly fill: THREE.HemisphereLight;
   // Lighting: tinted toward the record's colours, and the room dimmed while it plays.
@@ -543,6 +546,7 @@ export class VinylStage {
     this.visibility.disconnect();
     this.controls.dispose();
     for (const pressing of this.readyTextures.values()) disposePressing(pressing);
+    for (const t of Object.values(this.grooveTextures ?? {})) t.dispose();
     this.readyTextures.clear();
     this.textures.clear();
     for (const p of this.rigs.values()) {
@@ -654,28 +658,26 @@ export class VinylStage {
     }
 
     const record = this.buildRecord(cfg, root, find, spinners, labels, hideWithCover);
-    // Solid coloured vinyl under a glossy coat. (Transmission was tried for a translucent look,
-    // but on these discs it refracts the label across the whole record.)
+    // Coloured vinyl: the colour itself is cut with grooves, so they carry the light: satin
+    // grooves with circular streaks (anisotropy along them), glossy gaps between tracks, and a
+    // faint marbling. No clear coat: a flat coat over the grooves reads as a plastic plate.
+    // (Transmission was tried for a translucent look, but it refracts the label across the record.)
+    // The groove maps are drawn on first use (grooveMaps()).
     const colourMaterial = new THREE.MeshPhysicalMaterial({
-      roughness: 0.3,
+      roughness: 1, // scaled by the roughness map
       metalness: 0,
-      clearcoat: 0.8,
-      clearcoatRoughness: 0.12,
-      sheen: 0.35,
-      sheenRoughness: 0.5,
-      envMapIntensity: 1,
+      anisotropy: 0.85,
+      normalScale: new THREE.Vector2(0.7, 0.7),
+      specularIntensity: 1,
     });
-    // Keep the grooves: the vinyl's own normal / roughness maps, on its own UVs.
-    const source = materials(record.vinyl[0])[0] as THREE.MeshStandardMaterial;
-    colourMaterial.normalMap = source.normalMap ?? null;
-    if (source.normalMap) colourMaterial.normalScale.copy(source.normalScale);
-    colourMaterial.roughnessMap = source.roughnessMap ?? null;
+    // Picture discs: the print sealed under clear vinyl, so the grooves are in the clear coat.
     const pictureMaterial = new THREE.MeshPhysicalMaterial({
-      roughness: 0.38,
+      roughness: 0.6,
       metalness: 0,
       clearcoat: 1,
-      clearcoatRoughness: 0.06,
-      envMapIntensity: 0.8,
+      clearcoatRoughness: 0.7, // scaled by the roughness map
+      clearcoatNormalScale: new THREE.Vector2(0.6, 0.6),
+      envMapIntensity: 0.9,
     });
 
     // Tonearm: re-parent under swing (vertical axis through the pivot) and lift
@@ -832,6 +834,10 @@ export class VinylStage {
         uv[i * 2 + 1] = v.z / (2 * radius) + 0.5;
       });
       m.geometry.setAttribute("uv2", new THREE.BufferAttribute(uv, 2));
+      // Stored tangents follow the model's own UVs; the groove maps need a frame from uv2, which
+      // three derives itself when there are none. Only dropped where the model doesn't use them.
+      const ownNormals = materials(m).some((x) => (x as THREE.MeshStandardMaterial).normalMap);
+      if (m.geometry.attributes.tangent && !ownNormals) m.geometry.deleteAttribute("tangent");
     }
 
     return {
@@ -881,6 +887,46 @@ export class VinylStage {
     }
   }
 
+  /** The groove maps, on the record's planar uv2, shared by every deck. */
+  private grooveMaps() {
+    if (!this.grooveTextures) {
+      const maps = drawGrooveMaps();
+      const tex = (c: HTMLCanvasElement, srgb = false) => {
+        const t = new THREE.CanvasTexture(c);
+        t.flipY = false;
+        t.channel = 2;
+        t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+        if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+      };
+      this.grooveTextures = {
+        normal: tex(maps.normal),
+        roughness: tex(maps.roughness),
+        anisotropy: tex(maps.anisotropy),
+        tint: tex(maps.tint, true),
+      };
+    }
+    return this.grooveTextures;
+  }
+
+  /** Cuts grooves into a deck's coloured and picture materials (once per deck). */
+  private cutGrooves(rig: Rig) {
+    if (rig.colourMaterial.normalMap) return;
+    const g = this.grooveMaps();
+    Object.assign(rig.colourMaterial, {
+      map: g.tint,
+      normalMap: g.normal,
+      roughnessMap: g.roughness,
+      anisotropyMap: g.anisotropy,
+    });
+    Object.assign(rig.pictureMaterial, {
+      clearcoatNormalMap: g.normal,
+      clearcoatRoughnessMap: g.roughness,
+    });
+    rig.colourMaterial.needsUpdate = true;
+    rig.pictureMaterial.needsUpdate = true;
+  }
+
   /** The picture-disc texture for `p`, drawn on first use; null when the cover couldn't be loaded. */
   private pictureOf(p: Pressing): THREE.Texture | null {
     if (!p.picture && p.drawPicture) {
@@ -897,6 +943,7 @@ export class VinylStage {
   /** Puts `p` on the record: its label, and the vinyl pressed as the current disc style. Null: the model's own. */
   private applyLabel(rig: Rig, p: Pressing | null) {
     const style = p ? this.disc : "black";
+    if (style !== "black") this.cutGrooves(rig);
     const picture = p && style === "picture" ? this.pictureOf(p) : null;
 
     if (picture) {
@@ -916,7 +963,6 @@ export class VinylStage {
     else if (p && style !== "black") {
       // Colour, or a picture disc without a picture: the cover's colour.
       rig.colourMaterial.color.copy(p.colour);
-      rig.colourMaterial.sheenColor.copy(p.colour);
       for (const m of rig.record.vinyl) m.material = rig.colourMaterial;
     } else rig.record.vinyl.forEach((m, i) => (m.material = rig.record.vinylOriginal[i]));
 

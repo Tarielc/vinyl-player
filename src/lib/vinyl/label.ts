@@ -2,6 +2,8 @@
 // maps the full square onto its circle, so the corners are cropped off. Also picks
 // the colour for a coloured pressing and draws picture discs.
 
+import { cutGrooves, GROOVES } from "./grooves";
+
 export interface LabelInfo {
   /** Stable id of the track (provider:id). */
   key: string;
@@ -256,7 +258,7 @@ function coverPalette(art: Art): [string, string] | null {
   return [css(best), css(second)];
 }
 
-/** The cover across a whole 12" record, with a darker lead-in edge and the spindle hole. */
+/** The cover across a whole 12" record, cut with grooves, with a clear rim and the spindle hole. */
 function drawPictureDisc(art: Art): HTMLCanvasElement {
   const size = PICTURE_SIZE;
   const c = size / 2;
@@ -268,6 +270,7 @@ function drawPictureDisc(art: Art): HTMLCanvasElement {
   ctx.fillRect(0, 0, size, size);
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(art.img, art.sx, art.sy, art.side, art.side, 0, 0, size, size);
+  cutGrooves(ctx, size);
 
   // Clear vinyl at the edge (lead-in) and round the label area, as on a real picture disc.
   ctx.fillStyle = "rgba(10,9,8,0.55)";
@@ -277,7 +280,7 @@ function drawPictureDisc(art: Art): HTMLCanvasElement {
   ctx.fill("evenodd");
   ctx.strokeStyle = "rgba(255,255,255,0.18)";
   ctx.lineWidth = 2;
-  for (const r of [0.975, 0.32]) {
+  for (const r of [0.975, GROOVES.label]) {
     ctx.beginPath();
     ctx.arc(c, c, c * r, 0, Math.PI * 2);
     ctx.stroke();
