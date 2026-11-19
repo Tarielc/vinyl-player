@@ -6,6 +6,8 @@ export class MusicError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    /** Seconds; sent as a Retry-After header. */
+    public readonly retryAfter?: number,
   ) {
     super(message);
     this.name = "MusicError";
@@ -22,6 +24,7 @@ export function errorResponse(err: unknown): Response {
   if (err instanceof MusicError) {
     return Response.json({ error: err.message, code: err.code } satisfies ApiError, {
       status: err.status,
+      headers: err.retryAfter ? { "Retry-After": String(err.retryAfter) } : undefined,
     });
   }
   console.error("[music] unexpected error", err);

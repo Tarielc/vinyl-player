@@ -5,6 +5,8 @@ export type ProviderId = "spotify" | "youtube";
 
 export const PROVIDER_IDS: readonly ProviderId[] = ["spotify", "youtube"];
 
+export const PROVIDER_NAMES: Record<ProviderId, string> = { spotify: "Spotify", youtube: "YouTube" };
+
 export interface Track {
   provider: ProviderId;
   /** Provider-native id (Spotify track id, YouTube video id). */

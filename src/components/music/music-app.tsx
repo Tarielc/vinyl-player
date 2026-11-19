@@ -2,6 +2,7 @@
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { authErrorMessage } from "@/lib/music/auth-errors";
 import { PROVIDER_IDS, type ProviderId, type Track } from "@/lib/music/types";
 import { useRecordPrefs } from "@/lib/vinyl/prefs";
 import { DEFAULT_SKIN, SKINS, type SkinId } from "@/lib/vinyl/skins";
@@ -56,10 +57,10 @@ export function MusicApp({ searchParams }: { searchParams: SearchParams }) {
   const openPicker = useCallback(() => setPicker((p) => ({ ...p, open: true })), []);
 
   // Back from an OAuth sign-in: reopen the picker on that provider, or show the error.
-  const onAuthReturn = useCallback((connected?: string, authError?: string) => {
+  const onAuthReturn = useCallback((connected?: string, errorCode?: string, errorProvider?: string) => {
     const provider = PROVIDER_IDS.find((id) => id === connected);
     if (provider) setPicker((p) => ({ open: true, key: p.key + 1, provider }));
-    if (authError) setNotice(authError);
+    if (errorCode) setNotice(authErrorMessage(errorCode, errorProvider));
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
@@ -321,15 +322,16 @@ function AuthReturn({
   onReturn,
 }: {
   searchParams: SearchParams;
-  onReturn: (connected?: string, error?: string) => void;
+  onReturn: (connected?: string, errorCode?: string, errorProvider?: string) => void;
 }) {
   const sp = use(searchParams);
   const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const connected = first(sp.music_connected);
   const error = first(sp.music_error);
+  const errorProvider = first(sp.music_provider);
   useEffect(() => {
-    if (connected || error) onReturn(connected, error);
-  }, [connected, error, onReturn]);
+    if (connected || error) onReturn(connected, error, errorProvider);
+  }, [connected, error, errorProvider, onReturn]);
   return null;
 }
 

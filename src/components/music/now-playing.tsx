@@ -1,12 +1,11 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import { PROVIDER_NAMES } from "@/lib/music/types";
 import type { PlayerControls } from "@/lib/players/use-player";
 import { ArrowUpRightIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "@/components/icons";
 import { RecordOptions } from "./record-options";
 import { formatTime } from "./track-list";
-
-const PROVIDER_NAME = { spotify: "Spotify", youtube: "YouTube" } as const;
 
 /** Track title, an editorial credits table and the transport. */
 export function NowPlaying({ player, onChangeRecord }: { player: PlayerControls; onChangeRecord: () => void }) {
@@ -35,11 +34,11 @@ export function NowPlaying({ player, onChangeRecord }: { player: PlayerControls;
           rel="noreferrer"
           className="inline-flex items-center gap-1 underline-offset-4 hover:underline"
         >
-          {PROVIDER_NAME[current.provider]}
+          {PROVIDER_NAMES[current.provider]}
           <ArrowUpRightIcon size={12} />
         </a>
       ) : (
-        PROVIDER_NAME[current.provider]
+        PROVIDER_NAMES[current.provider]
       ),
     ],
     ["Length", duration ? formatTime(duration) : "—"],
