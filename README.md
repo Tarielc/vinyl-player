@@ -64,7 +64,7 @@ When a track loads, its cover is drawn onto the record label (with the title run
 
 Scrolling past the hero: on wide screens the deck slides into the left column and keeps spinning (and tracking) there while the turntable listings scroll on the right. On phones it scrolls away with the hero and a small spinning record stays in the now-playing bar. The plain mouse wheel scrolls the page; pinch (or Ctrl+wheel) zooms the deck.
 
-The listings are placeholder data in `src/lib/shop/catalog.ts`. The four that have a 3D model can be put on the deck with "Try it on the deck".
+The listings are placeholder data in `src/lib/shop/catalog.ts`. Every listing has a 3D model, so each can be put on the deck with "Try it on the deck".
 
 Models live in `public/models/`. `src/lib/vinyl/skins.ts` maps each file's node names onto the rig:
 
@@ -74,6 +74,12 @@ Models live in `public/models/`. `src/lib/vinyl/skins.ts` maps each file's node 
 | Console | `Vinyl1.glb` | Volume knob follows the volume |
 | Stave | `Crosley_Stave.glb` | Lid opened by holding the `Lid_Open` clip's last frame; volume knob follows the volume |
 | Minimal | `Vinyl2.glb` | Label is a material inside the disc mesh |
+| Studio | `Studio_Direct_DD2.glb` | Direct drive with an S-shaped arm and strobe dots; power dial turns with the motor |
+| Bone | `Bone_Edition.glb` | Belt drive with the belt and motor pulley showing; speed dial turns with the motor |
+| Carbon | `Carbon_Reference.glb` | Acrylic platter on a hub, outboard power supply on its own shelf |
+| Ember | `Ember_Compact.glb` | Compact belt drive; speed dial turns with the motor |
+
+The last four are built in Blender by script: each `.blend` in `E:\BLENDER\Turntables` keeps `ttkit.py` (modelling helpers) and `decks.py` (the four decks) in its Text editor. They share one layout: `Platter` > `Record` > `Record_Label` and `Record_LabelMark` (the label's own printing, hidden while a cover is on). The stylus sits on the lead-in groove in the file, and the arm's rest and lead-out angles are in its glTF extras.
 
 To add a deck, export a .glb whose tonearm origin sits on its pivot, copy it to `public/models/`, and add an entry with its spinning nodes, label, record (the vinyl's material, and the node holding the whole record if there is one) and arm angles (degrees about the pivot, measured from the arm's pose in the file). To sell it, set `skin` on a listing in `catalog.ts`.
 

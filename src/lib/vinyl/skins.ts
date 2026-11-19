@@ -2,7 +2,7 @@
 // (exported from E:\BLENDER) and names its moving parts differently, so this
 // maps them onto one rig: spinning parts, the label, the tonearm and knobs.
 
-export type SkinId = "walnut" | "console" | "minimal" | "stave";
+export type SkinId = "walnut" | "console" | "minimal" | "stave" | "studio" | "bone" | "carbon" | "ember";
 
 export interface ArmConfig {
   /** The tonearm node; its origin must sit on the pivot bearing. */
@@ -114,6 +114,62 @@ export const SKINS: readonly SkinConfig[] = [
     hideWithCover: ["VP_LabelMark"],
     record: { vinyl: ["VP_Black"] },
     arm: { node: "Tonearm", restDeg: 28, leadInDeg: 12.6, leadOutDeg: -8, liftDeg: 5 },
+  },
+  // The four below are built by the scripts kept inside their .blend files (E:\BLENDER\Turntables, Text
+  // editor: ttkit.py and decks.py) and share one layout: Platter > Record > Record_Label and
+  // Record_LabelMark (the label's own printing, hidden under a cover). Each file has the stylus on the
+  // lead-in groove, 146 mm from the spindle; rest and lead-out (60 mm) are also in the arm's glTF extras.
+  {
+    id: "studio",
+    name: "Studio",
+    blurb: "Direct drive, S-shaped arm, strobe platter",
+    url: "/models/Studio_Direct_DD2.glb",
+    bytes: 1_180_776,
+    spin: ["Platter"],
+    label: { node: "Record_Label" },
+    hideWithCover: ["LabelMark"],
+    record: { vinyl: ["Vinyl"], node: "Record" },
+    arm: { node: "Tonearm", restDeg: 28.28, leadInDeg: 0, leadOutDeg: -23.34, liftDeg: 6 },
+    knobs: [{ node: "Knob_Power", axis: "y", bind: "motor", fromDeg: 0, toDeg: -60 }],
+  },
+  {
+    id: "bone",
+    name: "Bone",
+    blurb: "White lacquer, belt drive, carbon arm",
+    url: "/models/Bone_Edition.glb",
+    bytes: 949_212,
+    spin: ["Platter"],
+    label: { node: "Record_Label" },
+    hideWithCover: ["LabelMark"],
+    record: { vinyl: ["Vinyl"], node: "Record" },
+    arm: { node: "Tonearm", restDeg: 26.17, leadInDeg: 0, leadOutDeg: -22.53, liftDeg: 6 },
+    // Off to 33.
+    knobs: [{ node: "Knob_Speed", axis: "y", bind: "motor", fromDeg: 0, toDeg: -40 }],
+  },
+  {
+    id: "carbon",
+    name: "Carbon",
+    blurb: "Acrylic platter, outboard power supply",
+    url: "/models/Carbon_Reference.glb",
+    bytes: 1_064_352,
+    spin: ["Platter"],
+    label: { node: "Record_Label" },
+    hideWithCover: ["LabelMark"],
+    record: { vinyl: ["Vinyl"], node: "Record" },
+    arm: { node: "Tonearm", restDeg: 31.58, leadInDeg: 0, leadOutDeg: -19.23, liftDeg: 6 },
+  },
+  {
+    id: "ember",
+    name: "Ember",
+    blurb: "Compact belt drive in burnt orange",
+    url: "/models/Ember_Compact.glb",
+    bytes: 879_156,
+    spin: ["Platter"],
+    label: { node: "Record_Label" },
+    hideWithCover: ["LabelMark"],
+    record: { vinyl: ["Vinyl"], node: "Record" },
+    arm: { node: "Tonearm", restDeg: 23.47, leadInDeg: 0, leadOutDeg: -24.35, liftDeg: 6 },
+    knobs: [{ node: "Knob_Speed", axis: "y", bind: "motor", fromDeg: 0, toDeg: -40 }],
   },
 ];
 

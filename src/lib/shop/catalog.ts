@@ -71,6 +71,7 @@ export const CATALOG: readonly Turntable[] = [
     price: 899,
     blurb: "High-torque direct drive with pitch control, built for long sessions.",
     specs: ["33⅓ / 45 rpm", "±8% pitch", "Steel chassis"],
+    skin: "studio",
     art: { plinth: "#1f1f1f", platter: "#3a3a3a", label: "#2b5cff", arm: "#d0d0d0", shape: "square" },
   },
   {
@@ -81,6 +82,7 @@ export const CATALOG: readonly Turntable[] = [
     price: 549,
     blurb: "White lacquer plinth, carbon-fibre arm and a felt mat in warm grey.",
     specs: ["33⅓ / 45 rpm", "Lacquer", "Carbon arm"],
+    skin: "bone",
     art: { plinth: "#e9e4d8", platter: "#8c8a84", label: "#a4875f", arm: "#262420", shape: "rounded" },
   },
   {
@@ -103,6 +105,7 @@ export const CATALOG: readonly Turntable[] = [
     price: 2400,
     blurb: "Acrylic platter, carbon arm and an outboard power supply on its own shelf.",
     specs: ["33⅓ / 45 rpm", "Acrylic platter", "Outboard PSU"],
+    skin: "carbon",
     art: { plinth: "#2c2f33", platter: "#5f6b75", label: "#e7b464", arm: "#bfc5ca", shape: "square" },
   },
   {
@@ -113,6 +116,7 @@ export const CATALOG: readonly Turntable[] = [
     price: 279,
     blurb: "Compact belt drive with USB out for digitising the records you love.",
     specs: ["33⅓ / 45 rpm", "USB out", "Built-in preamp"],
+    skin: "ember",
     art: { plinth: "#c4532d", platter: "#231f1c", label: "#efe9dc", arm: "#efe9dc", shape: "rounded" },
   },
 ];

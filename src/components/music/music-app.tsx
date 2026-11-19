@@ -330,7 +330,12 @@ export function MusicApp({ searchParams, shared }: { searchParams: SearchParams;
           )}
 
           <div className="chrome dims absolute bottom-3 right-4 z-10 flex items-center gap-1 lg:hidden">{viewControls}</div>
-          <DeckSwitcher skin={skin} onChange={setSkin} className="chrome dims absolute bottom-3 left-4 z-10 flex lg:hidden" />
+          {/* Leaves room for the view buttons on the right (two on phones, four from sm). */}
+          <DeckSwitcher
+            skin={skin}
+            onChange={setSkin}
+            className="chrome dims absolute bottom-3 left-4 z-10 flex max-w-[calc(100%-7.75rem)] sm:max-w-[calc(100%-13rem)] lg:hidden"
+          />
 
           {listening && <ListeningOverlay track={current} awake={awake} onLeave={() => setListening(false)} />}
         </div>
@@ -339,11 +344,11 @@ export function MusicApp({ searchParams, shared }: { searchParams: SearchParams;
         <div className="chrome dims absolute bottom-8 right-10 z-10 hidden items-center gap-1 lg:flex">{viewControls}</div>
 
         <header className="chrome dims absolute inset-x-0 top-0 z-20 flex h-16 items-center justify-between gap-4 px-5 lg:h-20 lg:px-10">
-          <Link href="/" className="text-[13px] font-medium uppercase tracking-[0.34em]">
+          <Link href="/" className="shrink-0 whitespace-nowrap text-[13px] font-medium uppercase tracking-[0.34em]">
             Vinyl <span className="text-paper/35">/</span> Player
           </Link>
           <DeckSwitcher skin={skin} onChange={setSkin} className="hidden lg:flex" />
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => openPicker()}
@@ -611,6 +616,13 @@ function Intro({ onStart }: { onStart: () => void }) {
   );
 }
 
+/** Fades a scrolling row out at the edges that have more to scroll to. */
+function edgeFade(left: boolean, right: boolean): CSSProperties | undefined {
+  if (!left && !right) return undefined;
+  const mask = `linear-gradient(to right, ${left ? "transparent" : "#000"}, #000 28px, #000 calc(100% - 28px), ${right ? "transparent" : "#000"})`;
+  return { maskImage: mask, WebkitMaskImage: mask };
+}
+
 function DeckSwitcher({
   skin,
   onChange,
@@ -620,32 +632,80 @@ function DeckSwitcher({
   onChange: (id: SkinId) => void;
   className?: string;
 }) {
+  // More decks than fit beside the view buttons on phones (or in the header below xl): the row scrolls
+  // sideways (a mouse wheel scrolls it too), fades at the edge that has more, and keeps the chosen deck
+  // in view, e.g. after "Try it on the deck" in the shop.
+  const row = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState({ left: false, right: false });
+  useEffect(() => {
+    const box = row.current;
+    if (!box) return;
+    const update = () => {
+      const left = box.scrollLeft > 1;
+      const right = box.scrollLeft + box.clientWidth < box.scrollWidth - 1;
+      setMore((m) => (m.left === left && m.right === right ? m : { left, right }));
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const max = box.scrollWidth - box.clientWidth;
+      const next = Math.min(max, Math.max(0, box.scrollLeft + e.deltaY));
+      if (next === box.scrollLeft) return; // at either end: the page scrolls as usual
+      e.preventDefault();
+      box.scrollLeft = next;
+    };
+    update();
+    box.addEventListener("scroll", update, { passive: true });
+    box.addEventListener("wheel", onWheel, { passive: false });
+    const resize = new ResizeObserver(update);
+    resize.observe(box);
+    return () => {
+      box.removeEventListener("scroll", update);
+      box.removeEventListener("wheel", onWheel);
+      resize.disconnect();
+    };
+  }, []);
+  useEffect(() => {
+    const box = row.current;
+    const chosen = box?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (!box || !chosen || box.scrollWidth <= box.clientWidth) return;
+    const left = chosen.offsetLeft - (box.clientWidth - chosen.offsetWidth) / 2;
+    const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    box.scrollTo({ left, behavior: smooth ? "smooth" : "auto" });
+  }, [skin]);
+
   return (
     <div
       role="radiogroup"
       aria-label="Turntable model"
-      className={`items-center gap-0.5 rounded-full border border-paper/15 bg-ink/50 p-1 backdrop-blur ${className}`}
+      className={`min-w-0 items-center rounded-full border border-paper/15 bg-ink/50 p-1 backdrop-blur ${className}`}
     >
-      <span className="hidden px-2.5 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/40 sm:inline">Deck</span>
-      {SKINS.map((s) => {
-        const active = s.id === skin;
-        return (
-          <button
-            key={s.id}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            title={s.blurb}
-            onClick={() => onChange(s.id)}
-            // Tighter on phones, so four decks fit beside the view button.
-            className={`rounded-full px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] transition sm:px-3 ${
-              active ? "bg-paper text-ink" : "text-paper/65 hover:text-paper"
-            }`}
-          >
-            {s.name}
-          </button>
-        );
-      })}
+      <span className="hidden shrink-0 px-2.5 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/40 xl:inline">
+        Deck
+      </span>
+      <div
+        ref={row}
+        className="relative flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={edgeFade(more.left, more.right)}
+      >
+        {SKINS.map((s) => {
+          const active = s.id === skin;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              title={s.blurb}
+              onClick={() => onChange(s.id)}
+              className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] transition sm:px-3 ${
+                active ? "bg-paper text-ink" : "text-paper/65 hover:text-paper"
+              }`}
+            >
+              {s.name}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
