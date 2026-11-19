@@ -5,6 +5,7 @@ import Link from "next/link";
 import { authErrorMessage } from "@/lib/music/auth-errors";
 import { apiFetch } from "@/lib/music/client";
 import { playsFor } from "@/lib/music/share";
+import { DEFAULT_QUEUE } from "@/lib/music/default-queue";
 import { PROVIDER_IDS, PROVIDER_NAMES, type ProviderId, type ProviderStatus, type Track } from "@/lib/music/types";
 import { useRecordPrefs } from "@/lib/vinyl/prefs";
 import { DEFAULT_SKIN, FEATURED_SKINS, SKINS, getSkin, type SkinId } from "@/lib/vinyl/skins";
@@ -99,11 +100,12 @@ export function MusicApp({ searchParams, shared }: { searchParams: SearchParams;
   const preload = useMemo(() => (upcoming ? toLabel(upcoming) : null), [upcoming]);
 
   const { play } = player;
+  const playDefaultQueue = useCallback(() => void play(DEFAULT_QUEUE[0], DEFAULT_QUEUE), [play]);
   const onRecordClick = useCallback(() => {
     if (current) void toggle();
     else if (sharedTrack) void play(sharedTrack);
-    else openPicker();
-  }, [current, toggle, sharedTrack, play, openPicker]);
+    else playDefaultQueue();
+  }, [current, toggle, sharedTrack, play, playDefaultQueue]);
 
   const duration = player.durationMs || current?.durationMs || 0;
   const { seek, playing } = player;
@@ -378,7 +380,7 @@ export function MusicApp({ searchParams, shared }: { searchParams: SearchParams;
           ) : sharedTrack ? (
             <SharedIntro track={sharedTrack} onPlay={play} onChoose={() => openPicker()} />
           ) : (
-            <Intro onStart={() => openPicker()} />
+            <Intro onStart={playDefaultQueue} onChoose={() => openPicker()} />
           )}
         </section>
 
@@ -582,7 +584,7 @@ function SharedIntro({
   );
 }
 
-function Intro({ onStart }: { onStart: () => void }) {
+function Intro({ onStart, onChoose }: { onStart: () => void; onChoose: () => void }) {
   return (
     <div>
       <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-paper/55">Spotify · YouTube · 33⅓ rpm</p>
@@ -590,8 +592,8 @@ function Intro({ onStart }: { onStart: () => void }) {
         Drop the <em className="text-paper/85">needle.</em>
       </h1>
       <p className="mt-6 max-w-[34ch] text-[17px] leading-relaxed text-paper/70">
-        Pick any track from Spotify or YouTube. Its cover is pressed onto the label, the platter spins up and the arm
-        finds the groove.
+        Start a public-domain jazz queue on YouTube, no account needed, or pick a track from Spotify or YouTube. The
+        cover is pressed onto the label and the arm finds the groove.
       </p>
       <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-4">
         <button
@@ -599,8 +601,15 @@ function Intro({ onStart }: { onStart: () => void }) {
           onClick={onStart}
           className="inline-flex h-12 items-center gap-3 bg-cue px-6 font-mono text-[12px] font-medium uppercase tracking-[0.2em] text-white transition hover:bg-cue-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper"
         >
-          Choose a record
+          Play the queue
           <ArrowRightIcon size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={onChoose}
+          className="border-b border-paper/40 pb-0.5 font-mono text-[11px] uppercase tracking-[0.22em] text-paper/75 transition hover:border-paper hover:text-paper"
+        >
+          Choose a record
         </button>
         <a
           href="#turntables"

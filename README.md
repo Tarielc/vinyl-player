@@ -1,6 +1,6 @@
 # Vinyl Player
 
-A Next.js app that plays music from **Spotify** and **YouTube** on a 3D turntable. A "Choose music" window searches both, including each user's own playlists and liked tracks; the cover goes on the record label, the platter spins and the arm drops. Below the deck is a small (placeholder) turntable shop with product pages and a cart.
+A Next.js app that plays music from **Spotify** and **YouTube** on a 3D turntable. Anyone can start the built-in public-domain jazz queue without signing in; a "Choose music" window searches both services and can browse connected users' playlists and liked tracks. The cover goes on the record label, the platter spins and the arm drops. Below the deck is a small (placeholder) turntable shop with product pages and a cart.
 
 ## Setup
 
