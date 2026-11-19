@@ -8,6 +8,8 @@ const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 const serif = Instrument_Serif({ variable: "--font-instrument-serif", subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
 
 export const metadata: Metadata = {
+  // Absolute URLs for link previews (share cards).
+  metadataBase: new URL(process.env.APP_URL || "http://localhost:3000"),
   title: "Vinyl Player",
   description: "Play Spotify and YouTube tracks on a 3D turntable: the cover goes on the label, the platter spins, the arm drops.",
 };

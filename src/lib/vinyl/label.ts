@@ -24,6 +24,8 @@ export interface PressedLabel {
   label: HTMLCanvasElement;
   /** CSS colour for a coloured pressing: the cover's main colour, or a classic one. */
   colour: string;
+  /** The cover's two strongest colours (main first), for lighting; null for grey or missing covers. */
+  palette: [string, string] | null;
   /** Draws the cover across a whole record (a picture disc); null without artwork. */
   drawPicture: (() => HTMLCanvasElement) | null;
 }
@@ -204,10 +206,11 @@ function drawFurniture(ctx: CanvasRenderingContext2D, info: LabelInfo, mono: str
 }
 
 /**
- * The cover's main colour: the most common saturated hue, weighted toward mid tones.
- * Null when the cover is mostly grey (or can't be read).
+ * The cover's main colours: the most common saturated hues, weighted toward mid tones. The
+ * second is the strongest hue well away from the first (or the first again). Null when the
+ * cover is mostly grey (or can't be read).
  */
-function coverColour(art: Art): string | null {
+function coverPalette(art: Art): [string, string] | null {
   const n = 24;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = n;
@@ -240,10 +243,17 @@ function coverColour(art: Art): string | null {
     bin.g += g * w;
     bin.b += b * w;
   }
-  const best = bins.reduce((a, b) => (b.w > a.w ? b : a));
+  const order = bins.map((_, i) => i).sort((a, b) => bins[b].w - bins[a].w);
+  const best = bins[order[0]];
   if (best.w < n * n * 0.03) return null;
-  const c = (v: number) => Math.round((v / best.w) * 255);
-  return `rgb(${c(best.r)}, ${c(best.g)}, ${c(best.b)})`;
+  // Two or more bins (60°) apart, and not a speck.
+  const far = order.find((i) => Math.min(Math.abs(i - order[0]), 12 - Math.abs(i - order[0])) >= 2);
+  const second = far !== undefined && bins[far].w >= best.w * 0.15 ? bins[far] : best;
+  const css = (bin: (typeof bins)[number]) => {
+    const c = (v: number) => Math.round((v / bin.w) * 255);
+    return `rgb(${c(bin.r)}, ${c(bin.g)}, ${c(bin.b)})`;
+  };
+  return [css(best), css(second)];
 }
 
 /** The cover across a whole 12" record, with a darker lead-in edge and the spindle hole. */
@@ -284,9 +294,11 @@ function drawPictureDisc(art: Art): HTMLCanvasElement {
 export async function pressLabel(info: LabelInfo): Promise<PressedLabel> {
   const art = info.artworkUrl ? await loadArt(info.artworkUrl).catch(() => null) : null;
   const label = await drawLabel(info, art);
+  const palette = art && coverPalette(art);
   return {
     label,
-    colour: (art && coverColour(art)) ?? VINYL[hash(info.key) % VINYL.length],
+    colour: palette?.[0] ?? VINYL[hash(info.key) % VINYL.length],
+    palette,
     drawPicture: art ? () => drawPictureDisc(art) : null,
   };
 }

@@ -6,13 +6,16 @@ import { consumeOAuthState, setSession } from "@/lib/music/session";
 
 /**
  * GET /api/music/:provider/callback: OAuth redirect target.
- * Always redirects back to the app with `?music_connected=` or with
- * `?music_error=<AuthErrorCode>&music_provider=`. Details stay in the server log.
+ * Always redirects back to the app (home, or the share link sign-in started from) with
+ * `?music_connected=` or with `?music_error=<AuthErrorCode>&music_provider=`. Details stay in the server log.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ provider: string }> }) {
   const url = new URL(request.url);
+  let returnTo = "/";
   const back = (query: Record<string, string>) =>
-    NextResponse.redirect(`${appUrl(request)}/?${new URLSearchParams(query)}`);
+    NextResponse.redirect(
+      `${appUrl(request)}${returnTo}${returnTo.includes("?") ? "&" : "?"}${new URLSearchParams(query)}`,
+    );
   const fail = (code: AuthErrorCode, providerId?: string) =>
     back(providerId ? { music_error: code, music_provider: providerId } : { music_error: code });
 
@@ -20,7 +23,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   try {
     const provider = getProvider((await params).provider);
     providerId = provider.id;
-    const validState = await consumeOAuthState(provider.id, url.searchParams.get("state"));
+    const { valid: validState, returnTo: saved } = await consumeOAuthState(provider.id, url.searchParams.get("state"));
+    if (saved) returnTo = saved;
 
     if (url.searchParams.get("error")) return fail("cancelled", provider.id);
     if (!validState) return fail("expired", provider.id);

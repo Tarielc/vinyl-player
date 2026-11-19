@@ -82,6 +82,7 @@ interface YtThumbs {
   default?: { url: string };
   medium?: { url: string };
   high?: { url: string };
+  maxres?: { url: string };
 }
 interface YtVideo {
   id: string;
@@ -135,6 +136,8 @@ function toTrack(v: YtVideo): Track | null {
     // "Artist - Topic" channels are YouTube's auto-generated artist channels.
     artists: [v.snippet.channelTitle.replace(/ - Topic$/, "")],
     artworkUrl: thumb(v.snippet.thumbnails),
+    // 16:9 like `medium` (the 4:3 sizes are letterboxed), and only there for HD uploads.
+    coverUrl: v.snippet.thumbnails?.maxres?.url,
     durationMs: parseDuration(v.contentDetails?.duration),
     externalUrl: `https://www.youtube.com/watch?v=${v.id}`,
   };
@@ -227,6 +230,30 @@ export const youtube: MusicProvider = {
     if (process.env.YOUTUBE_API_KEY) return cachedKeySearch(query, n);
     if (session) return searchVideos(query, n, { token: session.accessToken });
     throw new MusicError(401, "not_connected", "Sign in with Google to search YouTube.");
+  },
+
+  async getTrack(id) {
+    if (process.env.YOUTUBE_API_KEY) {
+      const [track] = await videosById([id], { key: process.env.YOUTUBE_API_KEY });
+      return track ?? null;
+    }
+    // No API key: oEmbed has the title and channel (it can't tell whether embedding is allowed).
+    const url = `https://www.youtube.com/watch?v=${id}`;
+    const res = await fetch(`https://www.youtube.com/oembed?${new URLSearchParams({ url, format: "json" })}`, {
+      cache: "no-store",
+    });
+    if (res.status === 404 || res.status === 400 || res.status === 401) return null;
+    if (!res.ok) throw await upstreamError(NAME, res);
+    const o = (await res.json()) as { title: string; author_name: string };
+    return {
+      provider: "youtube",
+      id,
+      uri: `youtube:video:${id}`,
+      title: o.title,
+      artists: [o.author_name.replace(/ - Topic$/, "")],
+      artworkUrl: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+      externalUrl: url,
+    };
   },
 
   async getPlaylists(session) {

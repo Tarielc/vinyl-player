@@ -104,3 +104,23 @@ export const BagIcon = (p: IconProps) => (
     <path d="M9 10V7a3 3 0 0 1 6 0v3" />
   </Icon>
 );
+
+/** Listening mode: four corners opening out. */
+export const ListenIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </Icon>
+);
+
+export const ShareIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 15V3.5M7.5 8 12 3.5 16.5 8" />
+    <path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5" />
+  </Icon>
+);
+
+export const CheckIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 12.5 10 17.5 19 7" />
+  </Icon>
+);

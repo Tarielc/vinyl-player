@@ -26,6 +26,15 @@ const SWAP_SECONDS = 1.3;
 const RUNOUT_MS = 3800;
 /** After the arm is dropped or rested, playback reports that disagree are ignored this long. */
 const DROP_HOLD_MS = 1500;
+/** Studio lights, used while nothing (or a grey cover) is on the deck. */
+const KEY_COLOUR = new THREE.Color(0xffd2a1);
+const RIM_COLOUR = new THREE.Color(0x9db2ff);
+const KEY_POWER = 9;
+const RIM_POWER = 1.4;
+const FILL_POWER = 0.35;
+const ENV_POWER = 0.9;
+/** How far the key light leans toward the cover's colour (the rim goes all the way). */
+const KEY_TINT = 0.45;
 /** Wide layouts: horizontal deck offset (fraction of width) and size, in the hero vs docked left. */
 const HERO_SHIFT_X = 0.16;
 const DOCK_SHIFT_X = -0.23;
@@ -62,6 +71,11 @@ export interface StageEvents {
   /** While the arm is dragged: where it would drop (0..1), `"rest"` over the rest, null when let go. */
   onArmScrub?(at: number | "rest" | null): void;
   onNeedle?(event: NeedleEvent): void;
+  /**
+   * The lights took the colours of the record now on the deck: two CSS colours (main, rim), or
+   * null for the plain studio lights (no record, or a grey cover). Fires as the record lands.
+   */
+  onLights?(colours: [string, string] | null): void;
 }
 
 /**
@@ -122,6 +136,8 @@ interface Pressing {
   colour: THREE.Color;
   drawPicture: (() => HTMLCanvasElement) | null;
   picture?: THREE.Texture;
+  /** Light colours from the cover (key, rim), or null to keep the studio's own. */
+  lights: [THREE.Color, THREE.Color] | null;
 }
 
 interface ArmGrab {
@@ -173,6 +189,13 @@ function studioEnvironment(): THREE.Scene {
   return env;
 }
 
+/** A cover colour made into a light: bright enough to light by, never neon. */
+function lightColour(css: string, lightness: number, maxSat: number): THREE.Color {
+  const c = new THREE.Color().setStyle(css, THREE.SRGBColorSpace);
+  const hsl = c.getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
+  return c.setHSL(hsl.h, Math.min(hsl.s, maxSat), lightness, THREE.SRGBColorSpace);
+}
+
 /** A cover colour made into vinyl: never muddy or too dark to read; greys stay grey (smoke). */
 function vinylColour(css: string): THREE.Color {
   const c = new THREE.Color().setStyle(css, THREE.SRGBColorSpace);
@@ -218,6 +241,13 @@ export class VinylStage {
   /** Off-screen canvases (phones, scrolled past the hero) keep animating but skip drawing. */
   private visible = true;
   private readonly key: THREE.SpotLight;
+  private readonly rim: THREE.DirectionalLight;
+  private readonly fill: THREE.HemisphereLight;
+  // Lighting: tinted toward the record's colours, and the room dimmed while it plays.
+  private readonly lightNow = { key: KEY_COLOUR.clone(), rim: RIM_COLOUR.clone() };
+  private readonly lightGoal = { key: KEY_COLOUR.clone(), rim: RIM_COLOUR.clone() };
+  /** 0 = room lights up, 1 = dimmed for listening. */
+  private dim = 0;
   private readonly abort = new AbortController();
   private disposed = false;
   private lastTime = performance.now();
@@ -275,6 +305,8 @@ export class VinylStage {
   /** Extra downward shift of the deck, as a fraction of the height (wide layouts). */
   private shiftY = 0;
   private shiftYTarget = 0;
+  /** Listening mode: the deck alone, centred, whatever the framing. */
+  private focus = false;
   /** 0 = hero position, 1 = docked on the left (wide layouts only). */
   private dock = 0;
   private dockTarget = 0;
@@ -306,12 +338,12 @@ export class VinylStage {
     const pmrem = new THREE.PMREMGenerator(renderer);
     const studio = studioEnvironment();
     this.scene.environment = pmrem.fromScene(studio, 0.02).texture;
-    this.scene.environmentIntensity = 0.9;
+    this.scene.environmentIntensity = ENV_POWER;
     disposeScene(studio);
     pmrem.dispose();
 
     // Warm key from the upper left, cool rim from behind, faint fill.
-    const key = new THREE.SpotLight(0xffd2a1, 9, 0, RAD(30), 0.75, 2);
+    const key = new THREE.SpotLight(KEY_COLOUR, KEY_POWER, 0, RAD(30), 0.75, 2);
     key.position.set(-0.75, 1.15, 0.55);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
@@ -323,10 +355,12 @@ export class VinylStage {
     this.scene.add(key, key.target);
     this.key = key;
 
-    const rim = new THREE.DirectionalLight(0x9db2ff, 1.4);
+    const rim = new THREE.DirectionalLight(RIM_COLOUR, RIM_POWER);
     rim.position.set(0.9, 0.7, -1.1);
-    const fill = new THREE.HemisphereLight(0xfff0dd, 0x0a0908, 0.35);
+    const fill = new THREE.HemisphereLight(0xfff0dd, 0x0a0908, FILL_POWER);
     this.scene.add(rim, fill);
+    this.rim = rim;
+    this.fill = fill;
 
     const floor = new THREE.Mesh(
       new THREE.CircleGeometry(4, 64),
@@ -475,6 +509,14 @@ export class VinylStage {
   /** Move the deck from its hero spot (0) to docked on the left (1), e.g. from scroll progress. */
   setDock(progress: number) {
     this.dockTarget = THREE.MathUtils.clamp(progress, 0, 1);
+  }
+
+  /** Listening mode: centre the deck and fill the view with it (true), or back to the layout's framing. */
+  setFocus(on: boolean) {
+    if (on === this.focus) return;
+    this.focus = on;
+    this.resize(); // the box may have just changed size too (phones go full screen)
+    if (this.rig) this.flyHome(1.1, false);
   }
 
   /** Dolly toward (+1) or away from (-1) the target. */
@@ -811,13 +853,18 @@ export class VinylStage {
       this.textures.set(info.key, existing);
       return;
     }
-    const p = pressLabel(info).then(({ label, colour, drawPicture }): Pressing => {
+    const p = pressLabel(info).then(({ label, colour, drawPicture, palette }): Pressing => {
       const tex = new THREE.CanvasTexture(label);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.flipY = false;
       tex.channel = 1; // the label's planar uv1
       tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-      const pressing: Pressing = { label: tex, colour: vinylColour(colour), drawPicture };
+      const pressing: Pressing = {
+        label: tex,
+        colour: vinylColour(colour),
+        drawPicture,
+        lights: palette && [lightColour(palette[0], 0.72, 0.7), lightColour(palette[1], 0.6, 0.85)],
+      };
       if (this.disposed || !this.textures.has(info.key)) disposePressing(pressing);
       else this.readyTextures.set(info.key, pressing);
       return pressing;
@@ -872,6 +919,18 @@ export class VinylStage {
       rig.colourMaterial.sheenColor.copy(p.colour);
       for (const m of rig.record.vinyl) m.material = rig.colourMaterial;
     } else rig.record.vinyl.forEach((m, i) => (m.material = rig.record.vinylOriginal[i]));
+
+    const lights = p?.lights ?? null;
+    if (lights) {
+      this.lightGoal.key.copy(KEY_COLOUR).lerp(lights[0], KEY_TINT);
+      this.lightGoal.rim.copy(lights[1]);
+    } else {
+      this.lightGoal.key.copy(KEY_COLOUR);
+      this.lightGoal.rim.copy(RIM_COLOUR);
+    }
+    this.events.onLights?.(
+      lights && [lights[0].getStyle(THREE.SRGBColorSpace), lights[1].getStyle(THREE.SRGBColorSpace)],
+    );
   }
 
   // ---------------------------------------------------------------- camera
@@ -888,7 +947,7 @@ export class VinylStage {
 
   /** Hero framing on a wide screen, where the copy takes the left side. */
   private isWideHero(width = this.container.clientWidth) {
-    return this.framing === "hero" && width >= 1024;
+    return this.framing === "hero" && !this.focus && width >= 1024;
   }
 
   /** Wide layouts keep the copy on the left, so the deck sits right of centre. */
@@ -1178,7 +1237,8 @@ export class VinylStage {
   /** Cheap fingerprint of the animated state, to skip idle frames. */
   private signature() {
     const s = this.swap ? this.swap.t : 1;
-    return `${this.omega.toFixed(5)}|${this.swingAngle.toFixed(5)}|${this.lift.toFixed(4)}|${this.motor.toFixed(4)}|${s}|${this.volume}`;
+    const { key, rim } = this.lightNow;
+    return `${this.omega.toFixed(5)}|${this.swingAngle.toFixed(5)}|${this.lift.toFixed(4)}|${this.motor.toFixed(4)}|${s}|${this.volume}|${this.dim.toFixed(4)}|${key.getHexString()}${rim.getHexString()}`;
   }
 
   private animate(rig: Rig, dt: number, now: number) {
@@ -1258,6 +1318,30 @@ export class VinylStage {
     ) {
       this.events.onNeedle?.("runout");
     }
+
+    // Lights: ease toward the record's colours, and dim the room while it plays.
+    this.dim = damp(this.dim, engaged ? 1 : 0, engaged ? 0.9 : 1.6, dt);
+    if (Math.abs(this.dim - (engaged ? 1 : 0)) < 1e-3) this.dim = engaged ? 1 : 0;
+    const blend = 1 - Math.exp(-1.6 * dt);
+    for (const name of ["key", "rim"] as const) {
+      const c = this.lightNow[name];
+      c.lerp(this.lightGoal[name], blend);
+      if (Math.abs(c.r - this.lightGoal[name].r) + Math.abs(c.g - this.lightGoal[name].g) + Math.abs(c.b - this.lightGoal[name].b) < 2e-3) {
+        c.copy(this.lightGoal[name]);
+      }
+    }
+    this.applyLights();
+  }
+
+  private applyLights() {
+    const d = smoothstep(this.dim);
+    this.key.color.copy(this.lightNow.key);
+    this.key.intensity = KEY_POWER * (1 + 0.15 * d);
+    // The coloured backlight stands out more once the room is dark.
+    this.rim.color.copy(this.lightNow.rim);
+    this.rim.intensity = RIM_POWER * (1 + 0.9 * d);
+    this.fill.intensity = FILL_POWER * (1 - 0.7 * d);
+    this.scene.environmentIntensity = ENV_POWER * (1 - 0.45 * d);
   }
 
   private pose(rig: Rig) {

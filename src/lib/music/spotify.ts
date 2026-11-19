@@ -130,6 +130,11 @@ function pickImage(images?: SpImage[] | null): string | undefined {
   )[0].url;
 }
 
+/** The largest image (share cards). */
+function largestImage(images?: SpImage[] | null): string | undefined {
+  return images?.length ? [...images].sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0].url : undefined;
+}
+
 function toTrack(t: SpTrack | null | undefined): Track | null {
   if (!t || !t.id || t.is_local || (t.type && t.type !== "track")) return null;
   return {
@@ -198,6 +203,18 @@ export const spotify: MusicProvider = {
     });
     const data = await api<{ tracks: SpPaging<SpTrack> }>(`/search?${params}`, token);
     return data.tracks.items.map(toTrack).filter((t): t is Track => t !== null);
+  },
+
+  async getTrack(id) {
+    let t: SpTrack;
+    try {
+      t = await api<SpTrack>(`/tracks/${encodeURIComponent(id)}`, await getAppToken());
+    } catch (err) {
+      if (err instanceof MusicError && (err.status === 404 || err.status === 400)) return null;
+      throw err;
+    }
+    const track = toTrack(t);
+    return track && { ...track, coverUrl: largestImage(t.album?.images) };
   },
 
   async getPlaylists(session) {

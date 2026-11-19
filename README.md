@@ -44,6 +44,7 @@ Provider tokens are stored in AES-256-GCM-encrypted, httpOnly cookies (`SESSION_
 | `/` | The deck, the music picker and the turntable listings |
 | `/turntables/[id]` | One listing, prerendered for each catalogue entry. Shows the deck in 3D when the listing has a model, otherwise its drawing |
 | `/cart` | The cart, saved in `localStorage` and kept in sync across tabs |
+| `/listen/[provider]/[id]?deck=` | A shared record: the home page with that track waiting on that deck. Its link preview is the record with the cover on the label, drawn by `opengraph-image.tsx` |
 
 Playback keeps going from page to page. The player lives in a `PlayerProvider` in the root layout rather than in the home page, because with `cacheComponents` Next hides the page on navigation and runs its effect cleanups, which would destroy the Spotify and YouTube players. The YouTube frame never moves in the DOM (moving an iframe reloads it): it is laid over a slot in the home hero, or floats in a corner on other pages, where the now-playing bar links back to the deck.
 
@@ -57,6 +58,9 @@ When a track loads, its cover is drawn onto the record label (with the title run
 - **Pressing.** Under the transport: *Black*, *Colour* (the cover's main colour, or a classic shade when the cover is grey or missing) or *Picture* (the cover across the whole record). Saved in `localStorage` with the needle-sounds setting (`src/lib/vinyl/prefs.ts`).
 - **Needle sounds.** Surface crackle while the stylus is in the groove, a thump when it lands, a click when it lifts and the run-out groove's tick in the last seconds of a side. They are synthesized with Web Audio (`src/lib/vinyl/needle-sounds.ts`) and follow the stage's needle events, at the player's volume. The music itself can't be mixed: the Spotify SDK and the YouTube frame don't expose their audio.
 - **The crate.** The queue is a row of sleeves in a crate; hover one to stand it up, click to play it. The playing record slides up out of its sleeve as it goes to the deck.
+- **Lighting.** The deck's key light leans toward the cover's main colour and the rim light takes its second colour (`label.ts` picks them). While a record plays the room dims: the fill and reflections drop, the rim light comes up, the page's edges darken and the header and crate fade back until you point at them. The glow behind the deck follows the same colours.
+- **Listening mode.** The corners button by the zoom controls hides everything but the deck, centred and full screen (the YouTube picture stays, in a corner, as its terms require). Moving the pointer shows the way out; Esc leaves.
+- **Sharing.** "Share record" under the transport copies a `/listen/…?deck=` link (phones get the share sheet). The server looks the track up again by id (`src/lib/music/shared-track.ts`, cached for a day), so a link can't carry its own title or image. Browsers won't play sound before a click, so the record waits on the deck. YouTube links play for anyone. Spotify links play only for listeners signed in with Premium; without a Spotify session the page offers to connect (sign-in returns to the link) or to find the song on YouTube.
 
 Scrolling past the hero: on wide screens the deck slides into the left column and keeps spinning (and tracking) there while the turntable listings scroll on the right. On phones it scrolls away with the hero and a small spinning record stays in the now-playing bar. The plain mouse wheel scrolls the page; pinch (or Ctrl+wheel) zooms the deck.
 
@@ -94,10 +98,10 @@ src/
   types/               ambient typings for the Spotify and YouTube SDKs
 ```
 
-- `src/lib/music/`: server providers (`spotify.ts`, `youtube.ts`) behind the `MusicProvider` interface (`provider.ts`), plus the registry, the session cookies, and the shared `types.ts`.
+- `src/lib/music/`: server providers (`spotify.ts`, `youtube.ts`) behind the `MusicProvider` interface (`provider.ts`), plus the registry, the session cookies, the shared `types.ts`, share links (`share.ts`) and the cached share-link lookup (`shared-track.ts`).
 - `src/lib/players/`: browser playback adapters (Spotify SDK, YouTube IFrame) behind `PlayerAdapter`, and the `usePlayer` hook (`use-player.ts`).
 - `src/lib/vinyl/`: the Three.js stage (`stage.ts`), label and picture-disc drawing (`label.ts`), the deck configs (`skins.ts`), needle sounds (`needle-sounds.ts`) and the saved pressing / sound settings (`prefs.ts`).
-- `src/components/music/`: `PlayerProvider` (owns playback and the YouTube frame; mounted in the root layout), `MusicApp` (the hero), `NowPlaying` (credits and transport), `RecordOptions` (pressing and needle sounds), `SleeveCrate` (the queue as sleeves in a crate), `DockedPlayer` (the now-playing bar after the hero and on other pages), `MusicPicker` (the modal), `TrackList`.
+- `src/components/music/`: `PlayerProvider` (owns playback and the YouTube frame; mounted in the root layout), `MusicApp` (the hero), `NowPlaying` (credits and transport), `RecordOptions` (pressing and needle sounds), `SleeveCrate` (the queue as sleeves in a crate), `ShareButton`, `DockedPlayer` (the now-playing bar after the hero and on other pages), `MusicPicker` (the modal), `TrackList`.
 - `src/components/shop/`: `Shop` (turntables for sale), `CartView`, `CartLink`, `AddToCart`, `TurntableArt`.
 - `src/components/vinyl/`: `VinylCanvas` (mounts the stage) and `TurntableViewer` (the deck on a product page).
 

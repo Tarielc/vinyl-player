@@ -6,9 +6,20 @@ import type { PlayerControls } from "@/lib/players/use-player";
 import { ArrowUpRightIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "@/components/icons";
 import { RecordOptions } from "./record-options";
 import { formatTime } from "./track-list";
+import type { SkinId } from "@/lib/vinyl/skins";
+import { ShareButton } from "./share-button";
 
 /** Track title, an editorial credits table and the transport. */
-export function NowPlaying({ player, onChangeRecord }: { player: PlayerControls; onChangeRecord: () => void }) {
+export function NowPlaying({
+  player,
+  deck,
+  onChangeRecord,
+}: {
+  player: PlayerControls;
+  /** The deck it's on, for share links. */
+  deck: SkinId;
+  onChangeRecord: () => void;
+}) {
   const { current, status, error, skipped, playing, positionMs, durationMs, volume, queue, index, hasNext } = player;
   if (!current) return null;
 
@@ -131,13 +142,16 @@ export function NowPlaying({ player, onChangeRecord }: { player: PlayerControls;
 
       <RecordOptions className="mt-5" />
 
-      <button
-        type="button"
-        onClick={onChangeRecord}
-        className="mt-6 border-b border-paper/40 pb-0.5 font-mono text-[11px] uppercase tracking-[0.24em] text-paper/80 transition hover:border-paper hover:text-paper"
-      >
-        Change record
-      </button>
+      <div className="mt-6 flex flex-wrap items-baseline gap-x-7 gap-y-3">
+        <button
+          type="button"
+          onClick={onChangeRecord}
+          className="border-b border-paper/40 pb-0.5 font-mono text-[11px] uppercase tracking-[0.24em] text-paper/80 transition hover:border-paper hover:text-paper"
+        >
+          Change record
+        </button>
+        <ShareButton track={current} deck={deck} />
+      </div>
 
       {(error || skipped.length > 0) && (
         <div className="mt-4 space-y-1 font-mono text-[11px] leading-relaxed text-amber">

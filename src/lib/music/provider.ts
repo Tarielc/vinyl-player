@@ -29,6 +29,8 @@ export interface MusicProvider {
   refresh(refreshToken: string): Promise<TokenSet>;
 
   search(query: string, limit: number, session: TokenSet | null): Promise<Track[]>;
+  /** One track by id, without a user session (shared links). Null when it doesn't exist or can't play here. */
+  getTrack(id: string): Promise<Track | null>;
   getPlaylists(session: TokenSet): Promise<Playlist[]>;
   /** `id` may be SAVED_PLAYLIST_ID for saved / liked tracks. */
   getPlaylistTracks(id: string, session: TokenSet): Promise<Track[]>;

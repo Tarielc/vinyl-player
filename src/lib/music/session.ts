@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { MusicError } from "./errors";
 import type { MusicProvider, TokenSet } from "./provider";
 import type { ProviderId } from "./types";
+import { safeReturnPath } from "./share";
 
 // Provider tokens are kept in AES-256-GCM encrypted, httpOnly cookies so no
 // database is required and tokens never reach client-side JavaScript
@@ -114,9 +115,11 @@ export async function requireSession(provider: MusicProvider): Promise<TokenSet>
 
 // ---- OAuth state (CSRF protection) ----
 
-export async function createOAuthState(id: ProviderId): Promise<string> {
+/** `returnTo`: a path to come back to after sign-in (already checked with safeReturnPath). */
+export async function createOAuthState(id: ProviderId, returnTo?: string): Promise<string> {
   const state = randomBytes(16).toString("hex");
-  (await cookies()).set(STATE_COOKIE, `${id}:${state}`, {
+  const back = returnTo ? `:${encodeURIComponent(returnTo)}` : "";
+  (await cookies()).set(STATE_COOKIE, `${id}:${state}${back}`, {
     httpOnly: true,
     sameSite: "lax",
     secure: secureCookies(),
@@ -126,9 +129,20 @@ export async function createOAuthState(id: ProviderId): Promise<string> {
   return state;
 }
 
-export async function consumeOAuthState(id: ProviderId, state: string | null): Promise<boolean> {
+/** Checks and clears the state cookie; `returnTo` is the path saved with it, if any. */
+export async function consumeOAuthState(
+  id: ProviderId,
+  state: string | null,
+): Promise<{ valid: boolean; returnTo?: string }> {
   const store = await cookies();
-  const expected = store.get(STATE_COOKIE)?.value;
+  const [cookieId, expected, back] = (store.get(STATE_COOKIE)?.value ?? "").split(":");
   store.delete({ name: STATE_COOKIE, path: "/api/music" });
-  return Boolean(state && expected && expected === `${id}:${state}`);
+  const valid = Boolean(state && expected && cookieId === id && expected === state);
+  let returnTo: string | undefined;
+  try {
+    returnTo = back ? safeReturnPath(decodeURIComponent(back)) : undefined;
+  } catch {
+    // Malformed: go home.
+  }
+  return { valid, returnTo };
 }

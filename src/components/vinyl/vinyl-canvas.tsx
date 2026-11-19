@@ -28,11 +28,13 @@ export function VinylCanvas({
   disc = "black",
   sounds = false,
   frameShift = 0,
+  focus = false,
   framing = "hero",
   onRecordClick,
   onNeedleDrop,
   onArmRest,
   onArmScrub,
+  onLights,
   onLoadState,
   className,
 }: {
@@ -52,6 +54,8 @@ export function VinylCanvas({
   sounds?: boolean;
   /** Slide the deck down by this fraction of the height (wide layouts), to clear overlays. */
   frameShift?: number;
+  /** Listening mode: the deck centred and filling its box. */
+  focus?: boolean;
   /** Read once, when the stage is created. */
   framing?: StageFraming;
   /** Makes the record clickable. Whether it is clickable is read once, when the stage is created. */
@@ -62,20 +66,22 @@ export function VinylCanvas({
   onArmRest?: () => void;
   /** While the arm is in hand: where it would land (0..1), "rest", or null once let go. */
   onArmScrub?: (at: number | "rest" | null) => void;
+  /** The deck's lights took the record's colours (key, rim), or went back to the studio's (null). */
+  onLights?: (colours: [string, string] | null) => void;
   onLoadState?: (state: LoadState) => void;
   className?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<VinylStage | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const callbacks = useRef({ onRecordClick, onLoadState, onNeedleDrop, onArmRest, onArmScrub });
+  const callbacks = useRef({ onRecordClick, onLoadState, onNeedleDrop, onArmRest, onArmScrub, onLights });
   const needleSounds = useRef<NeedleSounds | null>(null);
   /** Stylus in the groove, as last reported by the stage (for sounds turned on mid-record). */
   const inGroove = useRef(false);
   // Kept here too, so a stage created after the page was scrolled starts docked.
   const dock = useRef(0);
   useEffect(() => {
-    callbacks.current = { onRecordClick, onLoadState, onNeedleDrop, onArmRest, onArmScrub };
+    callbacks.current = { onRecordClick, onLoadState, onNeedleDrop, onArmRest, onArmScrub, onLights };
   });
 
   const initial = useRef({ framing, clickable: Boolean(onRecordClick), arm: Boolean(onNeedleDrop) });
@@ -95,6 +101,7 @@ export function VinylCanvas({
             onNeedleDrop: arm ? (f) => callbacks.current.onNeedleDrop?.(f) : undefined,
             onArmRest: () => callbacks.current.onArmRest?.(),
             onArmScrub: (at) => callbacks.current.onArmScrub?.(at),
+            onLights: (c) => callbacks.current.onLights?.(c),
             onNeedle: (e) => {
               if (e !== "runout") inGroove.current = e === "down";
               needleSounds.current?.needle(e);
@@ -102,7 +109,8 @@ export function VinylCanvas({
           },
           framing,
         );
-        created.setDock(dock.current);        setStage(created);
+        created.setDock(dock.current);
+        setStage(created);
       })
       .catch((err: unknown) => {
         if (!cancelled) setFailed(err instanceof Error ? err.message : "WebGL is not available.");
@@ -123,6 +131,7 @@ export function VinylCanvas({
   useEffect(() => stage?.setVolume(volume), [stage, volume]);
   useEffect(() => stage?.setDisc(disc), [stage, disc]);
   useEffect(() => stage?.setFrameShift(frameShift), [stage, frameShift]);
+  useEffect(() => stage?.setFocus(focus), [stage, focus]);
 
   // Needle sounds: loaded the first time they're wanted, then kept (muted when off) so the
   // groove state stays in step with the arm.

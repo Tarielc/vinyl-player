@@ -25,6 +25,52 @@ body {
   background: var(--color-ink);
 }
 
+/* Room light: the deck's lights in the record's colours (set from the stage), eased page-wide. */
+@property --glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(214 156 96);
+}
+@property --glow-rim {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(157 178 255);
+}
+.room {
+  transition:
+    --glow 1.6s ease,
+    --glow-rim 1.6s ease;
+}
+/* While a record plays the room dims: the glow tightens and the edges go dark. */
+.room-dim {
+  opacity: 0;
+  transition: opacity 1.8s ease;
+}
+.room[data-playing] .room-dim {
+  opacity: 1;
+}
+/* ...and the chrome steps back until it's wanted. */
+.dims {
+  transition: opacity 1.2s ease;
+}
+.room[data-playing] .dims:not(:hover, :focus-within) {
+  opacity: 0.5;
+}
+
+/* Listening mode: everything but the deck fades away. */
+.chrome {
+  transition:
+    opacity 0.5s ease,
+    visibility 0s;
+}
+.room[data-listening] .chrome {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.5s ease,
+    visibility 0s 0.5s;
+}
+
 /* Film grain over the page. */
 .grain {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -114,5 +160,45 @@ body {
     transition-duration: 1ms !important;
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+/* A short pop-up (e.g. "Link copied"): springs in over its anchor, holds, then lifts away. */
+@keyframes toast-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.8);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -2px) scale(1.06);
+  }
+  20% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(1);
+  }
+}
+.toast-pop {
+  animation: toast-pop 1.6s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes toast-pop {
+    0%,
+    100% {
+      opacity: 0;
+      transform: translate(-50%, 0);
+    }
+    10%,
+    85% {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
   }
 }

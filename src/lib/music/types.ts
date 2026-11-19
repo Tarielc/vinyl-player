@@ -17,6 +17,8 @@ export interface Track {
   artists: string[];
   album?: string;
   artworkUrl?: string;
+  /** Larger cover art, when the provider has one (labels, share cards). */
+  coverUrl?: string;
   durationMs?: number;
   externalUrl?: string;
 }
