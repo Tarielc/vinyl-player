@@ -24,6 +24,9 @@ export function NowPlaying({
   if (!current) return null;
 
   const duration = durationMs || current.durationMs || 0;
+  /** Nothing queued after this record; `sideOver` once it has played to the end. */
+  const lastRecord = !hasNext;
+  const sideOver = lastRecord && !playing && duration > 0 && positionMs >= duration - 1500;
   const pct = duration ? `${Math.min(100, (positionMs / duration) * 100)}%` : "0%";
   const len = current.title.length;
   const titleSize =
@@ -142,16 +145,39 @@ export function NowPlaying({
 
       <RecordOptions className="mt-5" />
 
-      <div className="mt-6 flex flex-wrap items-baseline gap-x-7 gap-y-3">
-        <button
-          type="button"
-          onClick={onChangeRecord}
-          className="border-b border-paper/40 pb-0.5 font-mono text-[11px] uppercase tracking-[0.24em] text-paper/80 transition hover:border-paper hover:text-paper"
-        >
-          Change record
-        </button>
+      <div className="mt-6 flex flex-wrap items-center gap-x-7 gap-y-3">
+        {lastRecord ? (
+          // Nothing queued after this one: the way to the next record stands out, and glows once the side ends.
+          <button
+            type="button"
+            onClick={onChangeRecord}
+            className={`inline-flex h-9 items-center gap-2.5 rounded-full bg-cue px-4 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-white transition hover:bg-cue-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper ${
+              sideOver ? "cue-glow" : ""
+            }`}
+          >
+            <span aria-hidden="true" className="relative flex size-2">
+              <span className="absolute inset-0 rounded-full bg-white/70 motion-safe:animate-ping" />
+              <span className="relative size-2 rounded-full bg-white" />
+            </span>
+            Change record
+            <span className="sr-only">: {sideOver ? "that was the last one" : "this is the last one in the crate"}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onChangeRecord}
+            className="border-b border-paper/40 pb-0.5 font-mono text-[11px] uppercase tracking-[0.24em] text-paper/80 transition hover:border-paper hover:text-paper"
+          >
+            Change record
+          </button>
+        )}
         <ShareButton track={current} deck={deck} />
       </div>
+      {lastRecord && (
+        <p aria-hidden="true" className="mt-2 font-mono text-[10px] uppercase tracking-[0.22em] text-paper/45">
+          {sideOver ? "That was the last record · pick another" : "Last record in the crate"}
+        </p>
+      )}
 
       {(error || skipped.length > 0) && (
         <div className="mt-4 space-y-1 font-mono text-[11px] leading-relaxed text-amber">

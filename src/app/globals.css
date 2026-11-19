@@ -202,3 +202,27 @@ body {
     }
   }
 }
+
+/* "Change record" once the last record's side is over: a slow pulse of light round the button. */
+@keyframes cue-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgb(43 92 255 / 0.55),
+      0 0 18px 2px rgb(43 92 255 / 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 9px rgb(43 92 255 / 0),
+      0 0 30px 6px rgb(43 92 255 / 0.5);
+  }
+}
+.cue-glow {
+  animation: cue-glow 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cue-glow {
+    animation: none;
+    box-shadow: 0 0 24px 4px rgb(43 92 255 / 0.45);
+  }
+}
